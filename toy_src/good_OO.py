@@ -17,7 +17,6 @@ class region_node():
         # self.storage = [storage.x_storcharge, storage.x_stordischarge]
         # self.load = load.c_demandLoad()
 
-
         self.build_region_objects()
 
     def build_region_objects(self): 
@@ -45,7 +44,6 @@ class region_node():
             elif param['type'] == 'load':
 
                 self.region_objects.append(Load(**param))
-
 
 
     def balancing_constraints(self, model): 
@@ -180,9 +178,9 @@ class Generators():
     
 class Solar():
 
-    def __init__(self, handle, **kwargs): 
+    def __init__(self, region_id, **kwargs): 
 
-         self.handle = handle
+         self.region_id = region_id
 
 
     def parameters(self, model): 
@@ -236,9 +234,9 @@ class Solar():
 
 class Wind():
 
-    def __init__(self, handle, **kwargs):
+    def __init__(self, region_id, **kwargs):
 
-        self.handle = handle
+        self.region_id = region_id
 
     def parameters(self, model): 
 
@@ -288,10 +286,10 @@ class Wind():
 
 class Storage():
 
-    def __init__(self):
+    def __init__(self, region_id, **kwargs):
 
-        self.params = region_node.input_params
-        self.sets = region_node.input_sets
+        self.region_id = region_id
+        self.params = kwargs.get('dependents',0)
 
     def parameters(self, model): 
 
@@ -375,7 +373,7 @@ class Storage():
 
 def Load(): 
 
-    def __init__(self):
+    def __init__(self, region_id, **kwargs):
 
         self.params = region_node.input_params
         self.sets = region_node.input_sets
@@ -395,7 +393,7 @@ class transmission():
         self.handle = f'{source}_{target}'
         self.capacity = kwargs.get('capacity', 1)
         self.cost = kwargs.get('cost', 1)
-        self.efficiency = kwargs.get('eficiency', 1)
+        self.efficiency = kwargs.get('efficiency', 1)
 
 
     def parameters(self, model): 
@@ -479,7 +477,7 @@ class model_opt():
 
             for target, link in adjacency.items():
 
-                link['object'] = transmission(source, target, **link)
+                transmission['object'] = transmission(source, target, **link)
 
     
     def build_model(self, *kwargs): 
@@ -545,8 +543,11 @@ class model_opt():
 
         for r in region_node(): 
 
+            hold = ()
 
         for r in transmission(): 
+        
+            hold = ()
 
     def build_objective(self, **kwargs): 
 

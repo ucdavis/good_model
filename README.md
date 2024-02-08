@@ -1,1 +1,1 @@
-The GOOD MOdel is an open source, python-based version of a R and GAMs version developed by Prof. Alan Jenn. The model is a capacity expansion and economic dispatch model used to model transportation electrification impacts on electricity system.
+The GOOD Model is an open source, python-based version of a R and GAMs version developed by Prof. Alan Jenn. The model is a capacity expansion and economic dispatch model used to model transportation electrification impacts on electricity system.
