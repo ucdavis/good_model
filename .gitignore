@@ -1,0 +1,5 @@
+*.pkl
+*.json
+__pycache__
+data_inputs/*
+.DS_Store
