@@ -11,12 +11,6 @@ class region_node():
         self.region_id = region_id
         self.params = kwargs.get('dependents', [])
 
-        # self.generators = generators.x_generation()
-        # self.solar = [solar.x_solarnew(), solar.c_solarCap(), solar.c_solarCF()]
-        # self.wind = [wind.x_windnew(), wind.c_windCap(), wind.c_windCF()]
-        # self.storage = [storage.x_storcharge, storage.x_stordischarge]
-        # self.load = load.c_demandLoad()
-
         self.build_region_objects()
 
     def build_region_objects(self): 
@@ -50,52 +44,74 @@ class region_node():
 
         # constraint 1: generation-demand balancing
         self.model.gen_to_demand_rule = pyomo.ConstraintList()
+
+        for gf in self.model.gf:
+            for t in self.model.t:
+                generation_term += region_objects.Generators.model.x_generation[gf, t]
         
-        generation_vars = []
-        for r in self.model.r:
-            for gf in self.model.gf:
-                for t in self.model.t:
-                    generation_vars.append(self.model.x_generation[r, gf, t])
+        # generation_vars = []
+        # for r in self.model.r:
+        #     for gf in self.model.gf:
+        #         for t in self.model.t:
+        #             generation_vars.append(self.model.x_generation[r, gf, t])
 
-        generation_term = LinearExpression(constant=0.0, linear_vars=generation_vars)
+        # generation_term = LinearExpression(constant=0.0, linear_vars=generation_vars)
 
-        solar_cap_indices = [(r,s,c) for r in self.model.r for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarMax]
-        solar_vars = []
-        solar_coefs = []
-        for (r, s, c) in solar_cap_indices:
-            for t in self.model.t:
-                if r in self.model.c_solarMax:
-                    solar_vars.append(self.model.c_solarCap[r] + self.model.x_solarNew[r, s, c])
-                    solar_coefs.append(self.model.c_solarCF[r, s, t])
-                else: 
-                    solar_vars.append(self.model.x_solarNew[r, s, c])
-                    solar_coefs.append(self.model.c_solarCF[r, s, t])
+        solar_term = pyomo.quicksum((region_objects.Solar.model.c_solarCap + region_objects.Solar.model.x_solarNew[s,c]) * region_objects.Solar.model.c_solarCF[s,t]
+            for s in self.model.src 
+            for t in self.model.t) 
+        
+        
+        # solar_cap_indices = [(r,s,c) for r in self.model.r for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarMax]
+        # solar_vars = []
+        # solar_coefs = []
+        # for (r, s, c) in solar_cap_indices:
+        #     for t in self.model.t:
+        #         if r in self.model.c_solarMax:
+        #             solar_vars.append(self.model.c_solarCap[r] + self.model.x_solarNew[r, s, c])
+        #             solar_coefs.append(self.model.c_solarCF[r, s, t])
+        #         else: 
+        #             solar_vars.append(self.model.x_solarNew[r, s, c])
+        #             solar_coefs.append(self.model.c_solarCF[r, s, t])
                     
-        solar_term = LinearExpression(constant=0.0, linear_coefs=solar_coefs, linear_vars=solar_vars)
+        # solar_term = LinearExpression(constant=0.0, linear_coefs=solar_coefs, linear_vars=solar_vars)
 
 
-        wind_cap_indices = [(r,w,c) for r in self.model.r for w in self.model.wrc for c in self.model.cc if (r, w, c) in self.model.c_windCost or (r, w, c) in self.model.c_windTransCost]
-        wind_vars = []
-        wind_coefs = []
-        for (r, w, c) in wind_cap_indices:
-            for t in self.model.t:
-                if r in self.model.c_windMax:
-                    wind_vars.append(self.model.c_windCap[r] + self.model.x_windNew[r, w, c])
-                    wind_coefs.append(self.model.c_windCF[r, w, t])
-                else:
-                    wind_vars.append(self.model.x_windNew[r, w, c])
-                    wind_coefs.append(self.model.c_windCF[r, w, t])
+        wint_term = pyomo.quicksum((region_objects.Wind.model.c_windCap + region_objects.Solar.model.x_windNew[w,c]) * region_objects.Solar.model.c_windCF[w,t]
+            + (region_objects.Wind.model.c_windTransCost[w,c] * region_objects.Wind.model.x_windNew[w,c]) 
+            for w in self.model.wrc 
+            for c in self.model.cc
+            for t in self.model.t) 
+        
+
+        # wind_cap_indices = [(r,w,c) for r in self.model.r for w in self.model.wrc for c in self.model.cc if (r, w, c) in self.model.c_windCost or (r, w, c) in self.model.c_windTransCost]
+        # wind_vars = []
+        # wind_coefs = []
+        # for (r, w, c) in wind_cap_indices:
+        #     for t in self.model.t:
+        #         if r in self.model.c_windMax:
+        #             wind_vars.append(self.model.c_windCap[r] + self.model.x_windNew[r, w, c])
+        #             wind_coefs.append(self.model.c_windCF[r, w, t])
+        #         else:
+        #             wind_vars.append(self.model.x_windNew[r, w, c])
+        #             wind_coefs.append(self.model.c_windCF[r, w, t])
                     
-        wind_term = LinearExpression(constant=0.0, linear_coefs=wind_coefs, linear_vars=wind_vars)
+        # wind_term = LinearExpression(constant=0.0, linear_coefs=wind_coefs, linear_vars=wind_vars)
 
-        stor_indices = [r for r in self.model.c_storCap]
-        stor_vars = []
-        for r in stor_indices: 
-            for t in self.model.t: 
-                stor_vars.append(self.model.x_storOut[r, t] - self.model.x_storIn[r, t])
-        storage_term = LinearExpression(constant=0.0,
-                                    linear_vars=stor_vars)
+
+        storage_term = pyomo.quicksum(region_objects.Storage.model.x_storOut[t] - region_objects.Storage.model.x_storIn[t] 
+            for t in self.model.t)
+
+        # stor_indices = [r for r in self.model.c_storCap]
+        # stor_vars = []
+        # for r in stor_indices: 
+        #     for t in self.model.t: 
+        #         stor_vars.append(self.model.x_storOut[r, t] - self.model.x_storIn[r, t])
+        # storage_term = LinearExpression(constant=0.0,
+        #                             linear_vars=stor_vars)
       
+
+        # Unsure how to handle the generations objects wrt to region_node
         export_vars = []
         export_coefs = [] 
         for r in self.model.r:
@@ -115,16 +131,25 @@ class region_node():
         import_term = LinearExpression(constant=0.0, linear_coefs=import_coefs, linear_vars=import_vars)
         
 
-        demand_indices = [(r,t) for r in self.model.r for t in self.model.t if (r,t) in self.model.c_demandLoad]
-        demand_vars = []
-        for (r,t) in demand_indices: 
-            demand_vars.append(self.model.c_demandLoad[r, t])
-        demand_term = LinearExpression(constant=0.0,
-                                   linear_vars=demand_vars)
+        for t in self.model.t: 
+            demand_term += region_objects.Load.model.c_demandLoad[t]
 
-        constraint_expr = LinearExpression(constant = 0.0, linear_vars=[generation_term, solar_term, 
-                        wind_term,storage_term,export_term,-import_term, -demand_term]
-                ) == 0
+        # demand_indices = [(r,t) for r in self.model.r for t in self.model.t if (r,t) in self.model.c_demandLoad]
+        # demand_vars = []
+        # for (r,t) in demand_indices: 
+        #     demand_vars.append(self.model.c_demandLoad[r, t])
+        # demand_term = LinearExpression(constant=0.0,
+        #                            linear_vars=demand_vars)
+
+        
+        constraint_expr = (generation_term 
+            + solar_term 
+            + wind_term 
+            + storage_term
+            + export_term 
+            -import_term
+            - demand_term
+            ) == 0
 				
         self.model.gen_to_demand_rule.add(constraint_expr)		
 
@@ -133,18 +158,20 @@ class Generators():
 
     def __init__(self, handle, **kwargs): 
 
-        self.handle = handle
+        self.region_id = region_id
+        self.gen_cost = kwargs()
+        self.gen_capacity = kwargs()
     
     def parameters(self, model):
 
-        self.model.c_gencost = pyomo.Param(self.model.r, self.model.gf, initialize=self.params['generator_cost'])
-        self.model.c_genMax = pyomo.Param(self.model.r, self.model.gf, initialize=self.params['generator_capacity'])
+        self.model.c_gencost = pyomo.Param(self.model.gf, initialize=self.gen_cost)
+        self.model.c_genMax = pyomo.Param(self.model.gf, initialize=self.gen_capacity)
 
         return model 
 
     def variables(self, model):
 
-        self.model.x_generation = pyomo.Var(self.model.r, self.model.gf, self.model.t, within = (pyomo.NonNegativeReals))
+        self.model.x_generation = pyomo.Var(self.model.gf, self.model.t, within = (pyomo.NonNegativeReals))
 
         setattr(model, self.handle, self.model.x_generation)
 
@@ -152,24 +179,23 @@ class Generators():
 
     def objective(self, model):
 
-        gen_cost_indices = [(r, gf) for r in model.r for gf in model.gf if (r, gf) in self.model.c_gencost]
+        gen_cost_indices = [gf for gf in model.gf if (gf) in self.model.c_gencost]
 
-        gen_cost_term = pyomo.quicksum(model.x_generation[r, gf, t] * self.model.c_gencost[r, gf] 
-                            for (r,gf) in gen_cost_indices
-                            for t in self.model.t
-                            )
-        
+        gen_cost_term = pyomo.quicksum(self.model.x_generation[gf, t] * self.model.c_gencost[gf] 
+            for gf in gen_cost_indices
+            for t in self.model.t)
+
         return gen_cost_term
 
     def constraints(self, model):
 
         self.model.gen_limits_rule = pyomo.ConstraintList()
-       
-        gen_limts_indices = [(r,gf) for (r,gf) in self.model.c_genMax]	
-
-        constraint_expr = pyomo.quicksum(self.model.c_genMax[r, gf] - self.model.x_generation[r, gf, t]
-            for (r, gf) in gen_limts_indices
-            for t in self.model.t) >= 0
+        
+        constraint_expr = pyomo.quicksum(
+            self.model.c_genMax[gf] - self.model.x_generation[gf, t]
+            for gf in self.model.gf
+            for t in self.model.t
+        ) >= 0
                         
         self.model.gen_limits_rule.add(constraint_expr)
 
@@ -181,20 +207,24 @@ class Solar():
     def __init__(self, region_id, **kwargs): 
 
          self.region_id = region_id
+         self.installed_capacity = kwargs()
+         self.cf = kwargs()
+         self.max_capacity = kwargs()
+         self.cost = kwargs()
 
 
     def parameters(self, model): 
 
-        self.model.c_solarCap = pyomo.Param(self.model.r, initialize=self.params['solar_installed_capacity'])
-        self.model.c_solarCF = pyomo.Param(self.model.r, self.model.src, self.model.t, initialize=self.params['solar_CF'])
-        self.model.c_solarMax = pyomo.Param(self.model.r, self.model.src, self.model.cc, initialize=self.params['solar_max_capacity'])
-        self.model.c_solarCost = pyomo.Param(self.model.r, self.model.src, self.model.cc, initialize=self.params['solar_capex'])
+        self.model.c_solarCap = pyomo.Param(initialize=self.installed_capacity)
+        self.model.c_solarCF = pyomo.Param(self.model.src, self.model.t, initialize=self.cf)
+        self.model.c_solarMax = pyomo.Param(self.model.src, self.model.cc, initialize=self.max_capacity)
+        self.model.c_solarCost = pyomo.Param(self.model.src, self.model.cc, initialize=self.cost)
 
         return model
         
     def variables(self, model):
 
-        self.model.x_solarnew = pyomo.Var(self.model.r, self.model.src, self.model.cc, within=(pyomo.NonNegativeReals))
+        self.model.x_solarnew = pyomo.Var(self.model.src, self.model.cc, within=(pyomo.NonNegativeReals))
 
         setattr(model, self.handle, self.model.x_solarnew)
 
@@ -202,12 +232,12 @@ class Solar():
 
     def objective(self, model):
 
-
-        solar_cost_indices = [(r,s,c) for r in self.model.r for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarCost]
+        solar_cost_indices = [(s,c) for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarCost]
         
-        solar_cost_term = pyomo.quicksum(self.model.c_solarCost[r,s,c] * self.model.x_solarNew[r,s,c] 
-                        for (r,s,c) in solar_cost_indices
-                        )
+        solar_cost_term = pyomo.quicksum(
+            self.model.c_solarCost[s,c] * self.model.x_solarNew[s,c] 
+            for (s,c) in solar_cost_indices
+        )
 
         return solar_cost_term
 
@@ -215,20 +245,18 @@ class Solar():
 
         self.model.solar_install_limits_rule = pyomo.ConstraintList()
 
-        solar_max_indices = [(r,s,c) for r in self.model.r for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarMax]
+        solar_max_indices = [(s,c) for s in self.model.src for c in self.model.cc if (s,c) in self.model.c_solarMax]
 
-        for r in self.model.r:
-            for s in self.model.src:
-                for c in self.model.cc:
-                    if (r, s, c) in solar_max_indices:
-                        
-                        constraint_expr = (
-                            self.model.c_solarMax[r, s, c] - self.model.x_solarNew[r, s, c] + (self.model.c_solarCap[r] 
-                            if r in self.model.c_solarCap else 0)
-                            ) >= 0
-                        
-                        self.model.solar_install_limits_rule.add(constraint_expr)
-            
+        for s in self.model.src:
+            for c in self.model.cc:
+                if (s, c) in solar_max_indices:      
+                    constraint_expr = pyomo.quicksum(
+                        self.model.c_solarMax[r, s, c] - self.model.x_solarNew[r, s, c] + (self.model.c_solarCap[r] 
+                        if r in self.model.c_solarCap else 0)
+                    ) >= 0
+                    
+                    self.model.solar_install_limits_rule.add(constraint_expr)
+        
         return model 
 
 
@@ -237,18 +265,23 @@ class Wind():
     def __init__(self, region_id, **kwargs):
 
         self.region_id = region_id
+        self.installed_capacity = kwargs()
+        self.cf = kwargs()
+        self.max_capacity = kwargs()
+        self.cost = kwargs()
+        self.trans_cost = kwargs()
 
     def parameters(self, model): 
 
-        self.model.c_windCap = pyomo.Param(self.model.r, initialize=self.params['wind_installed_capacity'])
-        self.model.c_windCF = pyomo.Param(self.model.r, self.model.wrc, self.model.t, initialize=self.params['wind_CF'])
-        self.model.c_windMax = pyomo.Param(self.model.r, self.model.wrc, self.model.cc, initialize=self.params['wind_max_capacity'])
-        self.model.c_windTransCost = pyomo.Param(self.model.r, self.model.wrc, self.model.cc, initialize=self.params['wind_transmission_cost'])
-        self.model.c_windCost = pyomo.Param(self.model.r, self.model.wrc, self.model.cc, initialize=self.params['wind_capex'])
+        self.model.c_windCap = pyomo.Param(initialize=self.installed_capacity)
+        self.model.c_windCF = pyomo.Param(self.model.wrc, self.model.t, initialize=self.cf)
+        self.model.c_windMax = pyomo.Param(self.model.wrc, self.model.cc, initialize=self.max_capacity)
+        self.model.c_windCost = pyomo.Param(self.model.wrc, self.model.cc, initialize=self.cost)
+        self.model.c_windTransCost = pyomo.Param(self.model.wrc, self.model.cc, initialize=self.trans_cost)
 
     def variables(self, model): 
 
-        self.model.x_windnew = pyomo.Var(self.model.r, self.model.wrc, self.model.cc, within=(pyomo.NonNegativeReals))
+        self.model.x_windnew = pyomo.Var(self.model.wrc, self.model.cc, within=(pyomo.NonNegativeReals))
 
         setattr(model, self.handle, self.model.x_windnew)
 
@@ -256,11 +289,11 @@ class Wind():
 
     def objective(self, model):
 
-        wind_cost_indices = [(r, w, c) for r in self.model.r for w in self.model.wrc for c in self.model.cc if (r, w, c) in self.model.c_windCost]
+        wind_cost_indices = [(w, c) for w in self.model.wrc for c in self.model.cc if (w, c) in self.model.c_windCost]
         wind_cost_term = pyomo.quicksum(
-                            (self.model.c_windCost[r, w, c] + self.model.c_windTransCost[r, w, c]) * self.model.x_windNew[r, w, c]
-                            for (r, w, c) in wind_cost_indices
-                            )
+            (self.model.c_windCost[w, c] + self.model.c_windTransCost[w, c]) * self.model.x_windNew[w, c]
+            for (w, c) in wind_cost_indices
+        )
 
         return wind_cost_term
 
@@ -268,20 +301,19 @@ class Wind():
 
         self.model.wind_install_limits_rule = pyomo.ConstraintList()
 
-        wind_max_indices = [(r,w,c) for r in self.model.r for w in self.model.wrc for c in self.model.cc if (r,w,c) in self.model.c_windMax]
+        wind_max_indices = [(w,c) for w in self.model.wrc for c in self.model.cc if (w,c) in self.model.c_windMax]
                         
-        for r in self.model.r:
-            for w in self.model.src:
-                for c in self.model.cc:
-                    if (r, w, c) in wind_max_indices:
-                        
-                        constraint_expr = (
-                            self.model.c_windMax[r, w, c] - self.model.x_windNew[r, w, c] + (self.model.c_windCap[r] 
-                            if r in self.model.c_windCap else 0)
-                            ) >= 0
-                        
-                        self.model.wind_install_limits_rule.add(constraint_expr)
-    
+
+        for w in self.model.src:
+            for c in self.model.cc:
+                if (w, c) in wind_max_indices:
+                    
+                    constraint_expr = (
+                        self.model.c_windMax[w, c] - self.model.x_windNew[w, c] + (self.model.c_windCap[r])
+                    ) >= 0
+                    
+                    self.model.wind_install_limits_rule.add(constraint_expr)
+
         return model
 
 class Storage():
@@ -290,100 +322,91 @@ class Storage():
 
         self.region_id = region_id
         self.params = kwargs.get('dependents',0)
+        self.storage_capacity = kwargs()
+        self.efficiency = kwargs()
+        self.cost = kwargs()
+        self.storage_flow_limit = kwargs
 
     def parameters(self, model): 
 
-        self.model.c_storCap = pyomo.Param(self.model.r, initialize=self.params['enerstor_installed_capacity'])
-        self.model.c_storEff = pyomo.Param(initialize=0.7) # efficiency is 2x one way efficiency (85%) because the model accounts for losses in only one direction 
-        self.model.c_storCost = pyomo.Param(initialize=10000) 
-        self.model.c_storFlowCap = pyomo.Param(initialize = 0.85)
+        self.model.c_storCap = pyomo.Param(initialize=self.storage_capacity)
+        self.model.c_storEff = pyomo.Param(initialize=efficiency)
+        self.model.c_storCost = pyomo.Param(initialize=cost) 
+        self.model.c_storFlowCap = pyomo.Param(initialize = storage_flow_limit)
 
     def variables(self): 
 
-        x_storsoc = pyomo.Var(self.model.r, self.model.t, within=(pyomo.NonNegativeReals))
-        x_storcharge = pyomo.Var(self.model.r, self.model.t, within=(pyomo.NonNegativeReals))
-        x_stordischarge = pyomo.Var(self.model.r, self.model.t, within=(pyomo.NonNegativeReals))
+        x_storsoc = pyomo.Var(self.model.t, within=(pyomo.NonNegativeReals))
+        x_storcharge = pyomo.Var(self.model.t, within=(pyomo.NonNegativeReals))
+        x_stordischarge = pyomo.Var(self.model.t, within=(pyomo.NonNegativeReals))
  
     def constraints(self): 
 
         #constraint 4: storage limits (r,t)
-        def storage_limits(self): 
+        self.model.maxStorage_rule = pyomo.ConstraintList()
 
-            self.model.maxStorage_rule = pyomo.ConstraintList()
+        constraint_expr = (pyomo.quicksum(
+            self.model.c_storCap - self.model.x_storSOC[t]
+            for t in self.model.t)
+        ) >=0
 
-            stor_limit_indices = [r for r in self.model.r if r in self.model.c_storCap]
-
-            constraint_expr = (pyomo.quicksum(
-                    self.model.c_storCap[r] - self.model.x_storSOC[r, t]
-                    for r in stor_limit_indices
-                    for t in self.model.t)
-                    ) >=0
-
-            self.model.maxStorage_rule.add(constraint_expr)
-            
+        self.model.maxStorage_rule.add(constraint_expr)
+        
         #constraint 5: storage state-of-charge (r,t)
-        def storage_soc(self): 
+        self.model.storageSOC_rule = pyomo.ConstraintList()
 
-            self.model.storageSOC_rule = pyomo.ConstraintList()
 
-            for r in self.model.r:
-                for t in self.model.t:
-                    if t == min(self.model.t):
-                        # For the first time step, set storSOC to 0
-                        self.model.storageSOC_rule.add(self.model.x_storSOC[r,t] == 0)
-                    else:
-                        # For subsequent time steps, apply the constraint
-                        constraint_expr = (
-                            self.model.x_storSOC[r,t] - self.model.x_storSOC[r,t-1] - self.model.x_storIn[r,t-1] * self.model.c_storEff + self.model.x_storOut[r,t-1]  
-                        ) == 0
-                        
-                        self.model.storageSOC_rule.add(constraint_expr)
+        for t in self.model.t:
+            if t == min(self.model.t):
+                # For the first time step, set storSOC to 0
+                self.model.storageSOC_rule.add(self.model.x_storSOC[t] == 0)
+            else:
+                # For subsequent time steps, apply the constraint
+                constraint_expr = (
+                    self.model.x_storSOC[t] - self.model.x_storSOC[t-1] - self.model.x_storIn[t-1] * self.model.c_storEff + self.model.x_storOut[t-1]  
+                ) == 0
+                
+                self.model.storageSOC_rule.add(constraint_expr)
 
 
         #constraint 6: storage flow-in limits (charging)
-        def stor_charge(self): 
+        self.model.stor_flowIN_rule = pyomo.ConstraintList() 
+        
 
-            self.model.stor_flowIN_rule = pyomo.ConstraintList() 
-            
-            stor_flowin_indices = [r for r in self.model.r if r in self.model.c_storCap]
+        constraint_expr = (pyomo.quicksum(self.model.c_storCap * self.model.c_storFlowCap - self.model.x_storIn[t] 
+            for t in self.model.t) 
+        ) >= 0 
 
-            constraint_expr = (pyomo.quicksum(self.model.c_storCap[r] * self.model.c_storFlowCap - self.model.x_storIn[r,t] 
-                            for r in stor_flowin_indices
-                            for t in self.model.t) 
-                            ) >= 0 
-
-            self.model.stor_flowIN_rule.add(constraint_expr)
+        self.model.stor_flowIN_rule.add(constraint_expr)
 
 
-         #constaint 7: storage flow out limits (discharging)
-        def stor_discharge(self): 
+        #constaint 7: storage flow out limits (discharging)
+        self.model.stor_flowOUT_rule = pyomo.ConstraintList()
+        
+        constraint_expr = pyomo.quicksum(
+            self.model.c_storCap * self.model.c_storFlowCap - self.model.x_storOut[t]
+            for t in self.model.t
+        ) >= 0
+                
+        self.model.stor_flowOUT_rule.add(constraint_expr)
 
-            self.model.stor_flowOUT_rule = pyomo.ConstraintList()
-
-            stor_flow_out_indices = [r for r in self.model.r if r in self.model.c_storCap]
-            
-            constraint_expr = pyomo.quicksum(
-                self.model.c_storCap[r] * self.model.c_storFlowCap - self.model.x_storOut[r, t]
-                for r in stor_flow_out_indices
-                for t in self.model.t
-            ) >= 0
-                    
-            self.model.stor_flowOUT_rule.add(constraint_expr)
+    return model
 
 
 def Load(): 
 
     def __init__(self, region_id, **kwargs):
 
-        self.params = region_node.input_params
-        self.sets = region_node.input_sets
+        self.region_id = region_id
+        self.load = kwargs()
 
     def parameters(self, model): 
 
-        self.model.c_demandLoad = pyomo.Param(self.model.r, self.model.t, initialize=self.params['load'])
+        self.model.c_demandLoad = pyomo.Param(self.model.t, initialize=load)
 
         return model
 
+# need to update this class wrt to region_node 
 class transmission():
 
     def __init__(self, source, target, **kwargs): 
@@ -528,9 +551,6 @@ class model_opt():
         
         # set of time periods expressed as hourly
         self.model.t = pyomo.Set(initialize=self.sets['hours']) # time period, hour
-
-        # set of regions in grid, defaults to IPM regios
-        self.model.r = pyomo.Set(initialize=self.sets['regions'])
 
         # set of states (lower 48) to integrate state-specific policy constraints
         self.model.s = pyomo.Set(initialize=self.sets['states']) 
