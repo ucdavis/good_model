@@ -97,98 +97,125 @@ def create_graph(data):
             nodes_dict[next_key][key] = next_dict
 
     nodes = []
-    for key, dict in nodes_dict.items(): 
-        # key = region 
-        # dict = data type
-        for sub_key, sub_dict in dict.items(): 
-            dependents = []
-            if sub_key == 'generator_cost': 
-                for next_key, value in sub_dict.items():
-                    dependents.append({'type': 'generator_cost', 'id': next_key, 'value': value})
-            elif sub_key == 'generator_capacity': 
-                for next_key, value in sub_dict.items(): 
-                    dependents.append({'id': 'generator_capacity', 'type': next_key, 'value': value})
-            elif sub_key == 'solar_capex': 
-                for next_key, next_dict in sub_dict.items():
+for key, dict in nodes_dict.items(): 
+    # key = region 
+    # dict = data type
+    dependents = []
+    for sub_key, sub_dict in dict.items(): 
+        parameters = []
+        if sub_key == 'generator_cost': 
+            for next_key, value in sub_dict.items():
+                hold = [{'id': next_key, 'cost': value}]
+                parameters.append(hold)
+            dependents.append({ 'type': 'generation_cost', 'parameters': parameters})    
+        elif sub_key == 'generator_capacity':
+            for next_key, value in sub_dict.items():
+                hold = [{'id': next_key, 'capacity': value}]
+                parameters.append(hold)    
+            dependents.append({'type': 'generation_capacity', 'parameters': parameters})     
+        elif sub_key == 'solar_capex': 
+            for next_key, next_dict in sub_dict.items():
+                # next key = state
+                # sub dict = resource class
+                for n_key, n_dict in next_dict.items(): 
+                    # n key = resource class
+                    # n dict = cost class
+                    for last_key, last_value in n_dict.items():
+                        # last key = cost calss
+                        # last value = value
+                        hold = {'resource_class': n_key, 'cost_class': last_key, 'value': value}
+                        parameters.append(hold)
+            dependents.append({'type': 'solar_capex', 'parameters': parameters})
+        elif sub_key == 'solar_CF': 
+            for next_key, next_dict in sub_dict.items():
+                # next key = resource class
+                # next dict = hours 
+                for n_key, value in next_dict.items(): 
+                    # n key = hour 
+                    # value = value 
+                    hold = {'resource_class': next_key, 'hour': n_key, 'value': value}
+                    parameters.append(hold)
+            dependents.append({'type': 'solar_cf', 'parameters': parameters})
+        elif sub_key == 'solar_installed_capacity': 
+            hold = {'value': dict[sub_key]}
+            parameters.append(hold)
+            dependents.append({'type': 'solar_installed_capacity', 'parameters': parameters})
+        elif sub_key == 'solar_max_capacity': 
+            for next_key, next_dict in sub_dict.items():
+                # next key = state
+                # sub dict = resource class
+                for n_key, n_dict in next_dict.items(): 
+                    # n key = resource class
+                    # n dict = cost class
+                    for last_key, last_value in n_dict.items():
+                        # last key = cost calss
+                        # last value = value
+                        hold = {'resource_class': n_key, 'cost_class': last_key, 'value': value}
+                        parameters.append(hold)
+            dependents.append({'type': 'solar_max_capacity', 'parameters': parameters})
+        elif sub_key == 'wind_capex': 
+            for next_key, next_dict in sub_dict.items():
+                # next key = state
+                # sub dict = resource class
+                for n_key, n_dict in next_dict.items(): 
+                    # n key = resource class
+                    # n dict = cost class
+                    for last_key, last_value in n_dict.items():
+                        # last key = cost calss
+                        # last value = value
+                        hold = {'resource_class': n_key, 'cost_class': last_key, 'value': value}
+                        parameters.append(hold)
+            dependents.append({'type': 'wind_capex', 'parameters': parameters})
+        elif sub_key == 'wind_CF': 
+            for next_key, next_dict in sub_dict.items():
+                # next key = resource class
+                # next dict = hours 
+                for n_key, value in next_dict.items(): 
+                    # n key = hour 
+                    # value = value 
+                    hold = {'resource_class': next_key, 'hour': n_key, 'value': value}
+                    parameters.append(hold)
+            dependents.append({'type': 'wind_cf', 'parameters': parameters})
+        elif sub_key == 'wind_max_capacity': 
+            for next_key, next_dict in sub_dict.items():
                     # next key = state
                     # sub dict = resource class
-                    for n_key, n_dict in next_dict.items(): 
+                for n_key, n_dict in next_dict.items(): 
                         # n key = resource class
                         # n dict = cost class
-                        for last_key, last_value in n_dict.items():
+                    for last_key, last_value in n_dict.items():
                             # last key = cost calss
                             # last value = value
-                            dependents.append({'id': 'solar', 'type': 'capex', 'resource_class': n_key, 'cost_class': last_key, 'value': value})
-            elif sub_key == 'solar_CF': 
-                for next_key, next_dict in sub_dict.items():
-                    # next key = resource class
-                    # next dict = hours 
-                    for n_key, value in next_dict.items(): 
-                        # n key = hour 
-                        # value = value 
-                        dependents.append({'id': 'solar', 'type': 'CF', 'resource_class': next_key, 'hour': n_key, 'value': value})
-            elif sub_key == 'solar_installed_capacity': 
-                dependents.append({'id': 'solar', 'type': 'installed_capacity', 'value': dict[sub_key]})
-            elif sub_key == 'solar_max_capacity': 
-                for next_key, next_dict in sub_dict.items():
-                        # next key = state
-                        # sub dict = resource class
-                    for n_key, n_dict in next_dict.items(): 
-                            # n key = resource class
-                            # n dict = cost class
-                        for last_key, last_value in n_dict.items():
-                                # last key = cost calss
-                                # last value = value
-                            dependents.append({'id': 'solar', 'type': 'max_capacity', 'resource_class': n_key, 'cost_class': last_key, 'value': value})
-            elif sub_key == 'wind_capex': 
-                for next_key, next_dict in sub_dict.items():
+                            hold = {'resource_class': n_key, 'cost_class': last_key, 'value': value}
+                            parameters.append(hold)
+            dependents.append({'type': 'wind_max_capacity', 'parameters': parameters})
+        elif sub_key == 'wind_installed_capacity': 
+            hold = {'value': dict[sub_key]}
+            parameters.append(hold)
+            dependents.append({'type': 'wind_installed_capacity', 'parameters': parameters})
+        elif sub_key == 'wind_transmission_cost': 
+            for next_key, next_dict in sub_dict.items():
                     # next key = state
                     # sub dict = resource class
-                    for n_key, n_dict in next_dict.items(): 
+                for n_key, n_dict in next_dict.items(): 
                         # n key = resource class
                         # n dict = cost class
-                        for last_key, last_value in n_dict.items():
+                    for last_key, last_value in n_dict.items():
                             # last key = cost calss
                             # last value = value
-                            dependents.append({'id': 'wind', 'type': 'capex', 'resource_class': n_key, 'cost_class': last_key, 'value': value})
-            elif sub_key == 'wind_CF': 
-                for next_key, next_dict in sub_dict.items():
-                    # next key = resource class
-                    # next dict = hours 
-                    for n_key, value in next_dict.items(): 
-                        # n key = hour 
-                        # value = value 
-                        dependents.append({'id': 'wind', 'type': 'CF', 'resource_class': next_key, 'hour': n_key, 'value': value})
-            elif sub_key == 'wind_max_capacity': 
-                for next_key, next_dict in sub_dict.items():
-                        # next key = state
-                        # sub dict = resource class
-                    for n_key, n_dict in next_dict.items(): 
-                            # n key = resource class
-                            # n dict = cost class
-                        for last_key, last_value in n_dict.items():
-                                # last key = cost calss
-                                # last value = value
-                            dependents.append({'id': 'wind', 'type': 'max_capacity', 'resource_class': n_key, 'cost_class': last_key, 'value': value})
-            elif sub_key == 'wind_installed_capacity': 
-                dependents.append({'id': 'wind', 'type': 'installed_capacity', 'value': dict[sub_key]})
-            elif sub_key == 'wind_transmission_cost': 
-                for next_key, next_dict in sub_dict.items():
-                        # next key = state
-                        # sub dict = resource class
-                    for n_key, n_dict in next_dict.items(): 
-                            # n key = resource class
-                            # n dict = cost class
-                        for last_key, last_value in n_dict.items():
-                                # last key = cost calss
-                                # last value = value
-                            dependents.append({'id': 'wind', 'type': 'transmission_capex', 'resource_class': n_key, 'cost_class': last_key, 'value': value})
-            elif sub_key == 'enerstor_installed_capacity': 
-                dependents.append({'id': 'solar', 'type': 'storage_capacity', 'value': dict[sub_key]})
-            elif sub_key == 'load': 
-                for next_key, value in sub_dict.items():
-                    dependents.append({'type': 'load', 'hour': next_key, 'value': value}) 
-            nodes.append({'id': key, 'dependents': dependents})
+                            hold = {'resource_class': n_key, 'cost_class': last_key, 'value': value}
+                            parameters.append(hold)
+            dependents.append({'type': 'wind_trans_cost', 'parameters': parameters})
+        elif sub_key == 'enerstor_installed_capacity': 
+            hold = {'value': dict[sub_key]}
+            parameters.append(hold)
+            dependents.append({'type': 'storage_capacity', 'parameters': parameters})
+        elif sub_key == 'load': 
+            for next_key, value in sub_dict.items():
+                hold = {'hour': next_key, 'value': value}
+                parameters.append(hold)
+            dependents.append({'type': 'load', 'parameters': parameters}) 
+        nodes.append({'id': key, 'dependents': dependents})
 
 
     # create links 
