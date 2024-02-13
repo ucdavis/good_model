@@ -47,69 +47,22 @@ class region_node():
 
         for gf in self.model.gf:
             for t in self.model.t:
-                generation_term += region_objects.Generators.model.x_generation[gf, t]
+                generation_term += self.region_objects.Generators.model.x_generation[gf, t]
         
-        # generation_vars = []
-        # for r in self.model.r:
-        #     for gf in self.model.gf:
-        #         for t in self.model.t:
-        #             generation_vars.append(self.model.x_generation[r, gf, t])
-
-        # generation_term = LinearExpression(constant=0.0, linear_vars=generation_vars)
-
-        solar_term = pyomo.quicksum((region_objects.Solar.model.c_solarCap + region_objects.Solar.model.x_solarNew[s,c]) * region_objects.Solar.model.c_solarCF[s,t]
+ 
+        solar_term = pyomo.quicksum((self.region_objects.Solar.model.c_solarCap + self.region_objects.Solar.model.x_solarNew[s,c]) * self.region_objects.Solar.model.c_solarCF[s,t]
             for s in self.model.src 
-            for t in self.model.t) 
-        
-        
-        # solar_cap_indices = [(r,s,c) for r in self.model.r for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarMax]
-        # solar_vars = []
-        # solar_coefs = []
-        # for (r, s, c) in solar_cap_indices:
-        #     for t in self.model.t:
-        #         if r in self.model.c_solarMax:
-        #             solar_vars.append(self.model.c_solarCap[r] + self.model.x_solarNew[r, s, c])
-        #             solar_coefs.append(self.model.c_solarCF[r, s, t])
-        #         else: 
-        #             solar_vars.append(self.model.x_solarNew[r, s, c])
-        #             solar_coefs.append(self.model.c_solarCF[r, s, t])
-                    
-        # solar_term = LinearExpression(constant=0.0, linear_coefs=solar_coefs, linear_vars=solar_vars)
-
-
-        wind_term = pyomo.quicksum((region_objects.Wind.model.c_windCap + region_objects.Wind.model.x_windNew[w,c]) * region_objects.Wind.model.c_windCF[w,t]
-            + (region_objects.Wind.model.c_windTransCost[w,c] * region_objects.Wind.model.x_windNew[w,c]) 
+            for t in self.model.t
+            for c in self.model.cc) 
+             
+   
+        wind_term = pyomo.quicksum((self.region_objects.Wind.model.c_windCap + self.region_objects.Wind.model.x_windNew[w,c]) * self.region_objects.Wind.model.c_windCF[w,t] 
             for w in self.model.wrc 
             for c in self.model.cc
             for t in self.model.t) 
         
-
-        # wind_cap_indices = [(r,w,c) for r in self.model.r for w in self.model.wrc for c in self.model.cc if (r, w, c) in self.model.c_windCost or (r, w, c) in self.model.c_windTransCost]
-        # wind_vars = []
-        # wind_coefs = []
-        # for (r, w, c) in wind_cap_indices:
-        #     for t in self.model.t:
-        #         if r in self.model.c_windMax:
-        #             wind_vars.append(self.model.c_windCap[r] + self.model.x_windNew[r, w, c])
-        #             wind_coefs.append(self.model.c_windCF[r, w, t])
-        #         else:
-        #             wind_vars.append(self.model.x_windNew[r, w, c])
-        #             wind_coefs.append(self.model.c_windCF[r, w, t])
-                    
-        # wind_term = LinearExpression(constant=0.0, linear_coefs=wind_coefs, linear_vars=wind_vars)
-
-
-        storage_term = pyomo.quicksum(region_objects.Storage.model.x_storOut[t] - region_objects.Storage.model.x_storIn[t] 
+        storage_term = pyomo.quicksum(self.region_objects.Storage.model.x_stordischarge[t] - self.region_objects.Storage.model.x_storcharge[t] 
             for t in self.model.t)
-
-        # stor_indices = [r for r in self.model.c_storCap]
-        # stor_vars = []
-        # for r in stor_indices: 
-        #     for t in self.model.t: 
-        #         stor_vars.append(self.model.x_storOut[r, t] - self.model.x_storIn[r, t])
-        # storage_term = LinearExpression(constant=0.0,
-        #                             linear_vars=stor_vars)
-      
 
         # Unsure how to handle the generations objects wrt to region_node
         export_vars = []
@@ -130,24 +83,15 @@ class region_node():
                     import_coefs.append(self.model.c_transLoss)
         import_term = LinearExpression(constant=0.0, linear_coefs=import_coefs, linear_vars=import_vars)
         
-
         for t in self.model.t: 
-            demand_term += region_objects.Load.model.c_demandLoad[t]
-
-        # demand_indices = [(r,t) for r in self.model.r for t in self.model.t if (r,t) in self.model.c_demandLoad]
-        # demand_vars = []
-        # for (r,t) in demand_indices: 
-        #     demand_vars.append(self.model.c_demandLoad[r, t])
-        # demand_term = LinearExpression(constant=0.0,
-        #                            linear_vars=demand_vars)
-
+            demand_term += self.region_objects.Load.model.c_demandLoad[t]
         
         constraint_expr = (generation_term 
             + solar_term 
             + wind_term 
             + storage_term
             + export_term 
-            -import_term
+            - import_term
             - demand_term
             ) == 0
 				
@@ -418,7 +362,7 @@ class Load():
 
         self.model.c_demandLoad = pyomo.Param(self.model.t, initialize=load)
 
-    return model
+        return model
 
 # need to update this class wrt to region_node 
 class Transmission():
