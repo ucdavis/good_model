@@ -348,7 +348,7 @@ class Storage():
                 
         self.model.stor_flowOUT_rule.add(constraint_expr)
 
-    return model
+        return self.model
 
 
 class Load():
