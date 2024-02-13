@@ -3,6 +3,24 @@ from pyomo.opt import SolverFactory
 from pyomo.common.timing import TicTocTimer
 from pyomo.core.expr.numeric_expr import LinearExpression
 
+class_dict_for_region ={
+    'generator_cost' : Generators,
+    'generator_capacity': Generators,
+    'solar': Solar,
+    'wind': Wind,
+    'storage': Storage,
+    'load': Load,
+    'solar_capex': SolarCapex,
+    'solar_CF': SolarCF,
+    'solar_max_capacity': SolarMaxCapacity,
+    'solar_installed_capacity': SolarInstalledCapacity,
+    'wind_capex': WindCapex,
+    'wind_max_capacity': WindMaxCapacity,
+    'wind_installed_capacity': WindInstalledCapacity,
+    'wind_transmission_cost': WindTransmissionCost,
+    'load': Load,
+    'enerstor_installed_capacity': EnergyStoreInstalledCapacity
+}
 
 class region_node():
 
@@ -18,26 +36,31 @@ class region_node():
         self.region_objects = []
 
         for param in self.params:
+            if param['type'] in class_dict:
+                class_name = class_dict_for_region[param['type']]
+                class_name = class_name(param['id'], **param)
+
+        # for param in self.params:
             
-            if param['type'] == 'generator_cost' or param['type'] == 'generator_capacity':
+        #     if param['type'] == 'generator_cost' or param['type'] == 'generator_capacity':
 
-                self.region_objects.append(Generators(param['id'], **param))
+        #         self.region_objects.append(Generators(param['id'], **param))
 
-            elif param['type'] == 'solar':
+        #     elif param['type'] == 'solar':
 
-                self.region_objects.append(Solar(param['id'], **param))
+        #         self.region_objects.append(Solar(param['id'], **param))
 
-            elif param['type'] == 'wind':
+        #     elif param['type'] == 'wind':
 
-                self.region_objects.append(Wind(param['id'], **param))
+        #         self.region_objects.append(Wind(param['id'], **param))
 
-            elif param['type'] == 'storage':
+        #     elif param['type'] == 'storage':
 
-                self.region_objects.append(Storage(param['id'], **param))
+        #         self.region_objects.append(Storage(param['id'], **param))
 
-            elif param['type'] == 'load':
+        #     elif param['type'] == 'load':
 
-                self.region_objects.append(Load(**param))
+        #         self.region_objects.append(Load(**param))
 
 
     def balancing_constraints(self, model): 
