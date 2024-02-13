@@ -77,7 +77,7 @@ class region_node():
         # solar_term = LinearExpression(constant=0.0, linear_coefs=solar_coefs, linear_vars=solar_vars)
 
 
-        wint_term = pyomo.quicksum((region_objects.Wind.model.c_windCap + region_objects.Solar.model.x_windNew[w,c]) * region_objects.Solar.model.c_windCF[w,t]
+        wind_term = pyomo.quicksum((region_objects.Wind.model.c_windCap + region_objects.Wind.model.x_windNew[w,c]) * region_objects.Wind.model.c_windCF[w,t]
             + (region_objects.Wind.model.c_windTransCost[w,c] * region_objects.Wind.model.x_windNew[w,c]) 
             for w in self.model.wrc 
             for c in self.model.cc
@@ -407,7 +407,7 @@ class Storage():
     return model
 
 
-def Load(): 
+class Load():
 
     def __init__(self, region_id, **kwargs):
 
@@ -418,7 +418,7 @@ def Load():
 
         self.model.c_demandLoad = pyomo.Param(self.model.t, initialize=load)
 
-        return model
+    return model
 
 # need to update this class wrt to region_node 
 class Transmission():
