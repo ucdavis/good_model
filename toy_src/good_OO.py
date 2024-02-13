@@ -36,7 +36,7 @@ class region_node():
         self.region_objects = []
 
         for param in self.params:
-            if param['type'] in class_dict:
+            if param['type'] in class_dict_for_region:
                 class_name = class_dict_for_region[param['type']]
                 class_name = class_name(param['id'], **param)
 
