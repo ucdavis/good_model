@@ -3,7 +3,7 @@ from pyomo.opt import SolverFactory
 from pyomo.common.timing import TicTocTimer
 from pyomo.core.expr.numeric_expr import LinearExpression
 
-class_dict_for_region ={
+class_dict_for_region = {
     'generator_cost' : Generators,
     'generator_capacity': Generators,
     'solar': Solar,
@@ -24,10 +24,11 @@ class_dict_for_region ={
 
 class region_node():
 
-    def __init__(self, region_id, **kwargs): 
+    def __init__(self, key, **kwargs): 
 
-        self.region_id = region_id
-        self.params = kwargs.get('dependents', [])
+        self.region_id = key
+        self.region_data = kwargs.get('region_data', [])
+        self.all_data = kwargs.get('data', [])
 
         self.build_region_objects()
 
@@ -532,10 +533,14 @@ class model_opt():
 
     def build_grid(self, **kwargs): 
 
-        for handle, node in graph._node.items(): 
+        for key in graph._node.keys(): 
 
-            node['object'] = region_node(handle, **node)
-            
+            data = self.graph            
+            region_data = self.graph._node[key]
+
+            node['object'] = region_node(key, data, region_data)
+
+
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
