@@ -28,6 +28,7 @@ class region_node():
 
         self.region_id = key
         self.region_data = kwargs.get('region_data', [])
+        self.dependents = self.region_data.get('dependents', [])
         self.all_data = kwargs.get('data', [])
 
         self.build_region_objects()
@@ -36,10 +37,11 @@ class region_node():
 
         self.region_objects = []
 
-        for param in self.params:
-            if param['type'] in class_dict_for_region:
-                class_name = class_dict_for_region[param['type']]
-                class_name = class_name(param['id'], **param)
+        for d in self.dependents:
+            if d['type'] in class_dict_for_region:
+                class_name = class_dict_for_region[d['type']]
+                param = d['parameters']
+                class_name(**param)
 
         # for param in self.params:
             
@@ -124,15 +126,16 @@ class region_node():
 
 class Generators():
 
-    def __init__(self, region_id, **kwargs): 
+    def __init__(self, **kwargs): 
 
-        self.region_id = region_id
         self.gen_fuel_type = kwargs.get('id', 0)
         self.gen_cost = kwargs.get('cost', 0)
         self.gen_capacity = kwargs.get('capacity',0)
+        self.hours = list(range(0,8760))
 
     def sets(self,model): 
 
+        self.model.t = pyomo.Set(initialize=hours)
         self.model.gf = pyomo.Set(initialize=gen_fuel_type)
 
     def parameters(self, model):
@@ -140,22 +143,19 @@ class Generators():
         self.model.c_gencost = pyomo.Param(self.model.gf, initialize=self.gen_cost)
         self.model.c_genMax = pyomo.Param(self.model.gf, initialize=self.gen_capacity)
 
-        setattr(model, self.region_id, self.model.c_gencost)
-        setattr(model, self.region_id, self.model.c_genMax)
-
         return model 
 
     def variables(self, model):
 
         self.model.x_generation = pyomo.Var(self.model.gf, self.model.t, within = (pyomo.NonNegativeReals))
 
-        setattr(model, self.region_id, self.model.x_generation)
-
         return model
 
     def objective(self, model):
 
         gen_cost_indices = [gf for gf in model.gf if (gf) in self.model.c_gencost]
+
+        gen_cost_term = 0
 
         gen_cost_term = pyomo.quicksum(self.model.x_generation[gf, t] * self.model.c_gencost[gf] 
             for gf in gen_cost_indices
@@ -227,7 +227,7 @@ class Solar():
             for c in self.model.cc:
                 if (s, c) in solar_max_indices:      
                     constraint_expr = pyomo.quicksum(
-                        self.model.c_solarMax[r, s, c] - self.model.x_solarNew[r, s, c] + (self.model.c_solarCap[r] 
+                        self.model.c_solarMax[s, c] - self.model.x_solarNew[s, c] + (self.model.c_solarCap
                         if r in self.model.c_solarCap else 0)
                     ) >= 0
                     
@@ -484,7 +484,6 @@ class model_opt():
 
             node['object'] = region_node(key, data, region_data)
 
-
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
@@ -512,25 +511,6 @@ class model_opt():
         timer.toc('Constraints built: complete')
 
     def build_sets(self, **kwargs): 
-
-        for handle, node in graph._node.items(): 
-
-            for dependents, values in node.items(): 
-
-                type = values.get('type', 0)
-                
-                if type == 'generator_capacity': 
-
-                    gen_type = values.get('id', 0)
-
-        
-        self.model.g = pyomo.Set(initialize=gen_type)
-
-        # set of generator types
-        self.model.g = pyomo.Set(initialize=self.sets['gen_type']) 
-
-        # set of generator fuel types
-        self.model.gf = pyomo.Set(initialize=self.sets['gen_fuel_type']) 
 
         # set of solar resource classes
         self.model.src = pyomo.Set(initialize=self.sets['resource_class']) 
