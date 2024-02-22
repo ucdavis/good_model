@@ -33,6 +33,10 @@ class region_node():
 
         self.build_region_objects()
 
+        self.build_region_model() 
+
+        self.balancing_constraint()
+
     def build_region_objects(self): 
 
         self.region_objects = []
@@ -42,6 +46,14 @@ class region_node():
                 class_name = class_dict_for_region[d['type']]
                 param = d['parameters']
                 self.region_objects.append(class_name(region_id, **param))
+
+        self.transmission_objects = [] 
+
+        for source, adjacency in self.graph._adj.items():
+            for target, link in adjacency.items():
+                self.transmission_objects
+
+                transmission['object'] = transmission(source, target, **link)
 
         # for param in self.params:
             
@@ -66,47 +78,41 @@ class region_node():
         #         self.region_objects.append(Load(**param))
 
 
-    def sets(self, model): 
+    def build_region_model(self): 
 
-        for obj in region_objects: 
+        def parameters(self, model): 
 
-            model = obj.sets(model)
+            for obj in self.region_objects: 
 
-        return model
-    
-    def parameters(self, model): 
+                model = obj.parameters(model)
 
-        for obj in region_objects: 
+            return model
+        
+        def variables(self, model): 
 
-            model = obj.parameters(model)
+            for obj in self.region_objects: 
 
-        return model
-    
-    def variables(self, model): 
+                model = obj.variables(model)
 
-        for obj in region_objects: 
+            return model
 
-            model = obj.variables(model)
+        def objective(self, model): 
 
-        return model
+            objective_function = 0
 
-    def objective(self, model): 
+            for obj in self.region_objects: 
 
-        objective_function = 0
+                objective_function += obj.objective(model)
 
-        for obj in region_objects: 
+            return objective_function
 
-            objective_function += obj.objective(model)
+        def region_object_constraints(self, model):
 
-        return objective_function
+            for obj in self.region_objects: 
 
-    def region_object_constraints(self, model):
+                model = obj.constraints(model)
 
-        for obj in region_objects: 
-
-            model = obj.constraints(model)
-
-        return model
+            return model
 
     def balancing_constraint(self, model): 
 
@@ -130,6 +136,8 @@ class region_node():
         
         storage_term = pyomo.quicksum(self.region_objects.Storage.model.x_stordischarge[t] - self.region_objects.Storage.model.x_storcharge[t] 
             for t in self.model.t)
+
+        transmission_term = pyomo.quicksum()
 
         # Unsure how to handle the generations objects wrt to region_node
         export_vars = []
@@ -157,8 +165,7 @@ class region_node():
             + solar_term 
             + wind_term 
             + storage_term
-            + export_term 
-            - import_term
+            - transmission_term
             - demand_term
             ) == 0
 				
@@ -489,21 +496,6 @@ class Transmission():
             for t in self.model.t) >=0
                 
         self.model.trans_limits_rule.add(constraint_expr)
-
-
-        self.model.trans_balance_rule = pyomo.ConstraintList()
-
-        for r in self.model.r: 
-            for o in self.model.o:
-                if (r,o) in self.model.c_transCap:
-                    for t in self.model.t:
-                        constraint_expr = ( 
-                        self.model.x_trans[r,o,t] - self.model.x_trans[o,r,t]
-                        ) == 0
-                    else: 
-                        constraint_expr = (pyomo.Constraint.Skip)
-
-                        self.model.trans_balance_rule.add(constraint_expr)
 
         return model
 
