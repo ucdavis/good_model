@@ -24,13 +24,21 @@ class_dict_for_region = {
 
 class region_node():
 
-    def __init__(self, key, **kwargs): 
+    def __init__(self, key, graph, node_data): 
 
         self.region_id = key
-        self.region_data = kwargs.get('region_data', [])
+        self.region_data = node_data
         self.dependents = self.region_data.get('dependents', [])
-        self.all_data = kwargs.get('data', [])
-
+        self.graph = graph
+        #Nested dictionary {"generator": {"generator 1": generator class object, 
+                            #             "generator 2": generator class object
+                            #              }, 
+                            # "wind": {
+                            #     "wind 1": wind class object, 
+                            #     "wind 2": wind class object
+                            # }
+                            # }
+        self.region_objects = {}
         self.build_region_objects()
 
     def build_region_objects(self): 
@@ -41,29 +49,9 @@ class region_node():
             if d['type'] in class_dict_for_region:
                 class_name = class_dict_for_region[d['type']]
                 param = d['parameters']
-                self.region_objects.append(class_name(region_id, **param))
-
-        # for param in self.params:
-            
-        #     if param['type'] == 'generator_cost' or param['type'] == 'generator_capacity':
-
-        #         self.region_objects.append(Generators(param['id'], **param))
-
-        #     elif param['type'] == 'solar':
-
-        #         self.region_objects.append(Solar(param['id'], **param))
-
-        #     elif param['type'] == 'wind':
-
-        #         self.region_objects.append(Wind(param['id'], **param))
-
-        #     elif param['type'] == 'storage':
-
-        #         self.region_objects.append(Storage(param['id'], **param))
-
-        #     elif param['type'] == 'load':
-
-        #         self.region_objects.append(Load(**param))
+                #TODO: since inside a region we have all the dependents we should have different dependent_id to identify the 
+                #! change logic based on new structure of self.region_objects
+                self.region_objects.append(class_name(self.region_id, **param))
 
 
     def sets(self, model): 
@@ -171,11 +159,13 @@ class Generators():
 
     def __init__(self, region_id, **kwargs): 
 
+        #TODO: we need unique way to identify each generator in each region
         self.region_id = region_id
         self.gen_fuel_type = kwargs.get('id', 0)
         self.gen_cost = kwargs.get('cost', 0)
         self.gen_capacity = kwargs.get('capacity',0)
 
+    #! Model shoould be either passed as the params to the constructor or should be available globally
     def sets(self, model): 
 
         model.gf = pyomo.Set(initialize=self.gen_fuel_type)
@@ -521,6 +511,8 @@ class model_opt():
 
     def build(self, **kwargs): 
 
+        #! we are building nodes and transmission objects in build_grid. THese classes uses "pynomo model" but if you see
+        #! the pynomo model is initialised after building_grid it will through error
         self.build_grid()
         
         self.build_model()
@@ -529,17 +521,18 @@ class model_opt():
 
     def build_grid(self, **kwargs): 
 
-        for key in graph._node.keys(): 
+        for key in self.graph._node.keys(): 
 
-            data = self.graph            
+            graph = self.graph            
             region_data = self.graph._node[key]
 
-            node['object'] = region_node(key, data, region_data)
+            #TODO: Make a node dict in class model_opt
+            node['object'] = region_node(key, graph, region_data)
 
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
-
+            #TODO: Make a transmission dict with key as object of node class for source and value as object of node class for target
                 transmission['object'] = transmission(source, target, **link)
 
     def build_model(self, *kwargs): 
