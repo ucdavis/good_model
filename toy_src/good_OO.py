@@ -29,10 +29,6 @@ class Region_node():
 
         self.build_region_objects()
 
-        self.build_region_model() 
-
-        self.build_balancing_constraint()
-
     def build_region_objects(self): 
 
         self.region_objects = []
@@ -45,36 +41,7 @@ class Region_node():
                 ## this loop should only create five objects and pass the appropriate data type to get each object
                 self.region_objects.append(class_name(region_id, **param))
 
-        self.transmission_objects = [] 
-
-        for source, adjacency in self.graph._adj.items():
-            for target, link in adjacency.items():
-                
-                self.transmission_objects
-
-                # transmission['object'] = transmission(source, target, **link)
-
-        # for param in self.params:
-            
-        #     if param['type'] == 'generator_cost' or param['type'] == 'generator_capacity':
-
-        #         self.region_objects.append(Generators(param['id'], **param))
-
-        #     elif param['type'] == 'solar':
-
-        #         self.region_objects.append(Solar(param['id'], **param))
-
-        #     elif param['type'] == 'wind':
-
-        #         self.region_objects.append(Wind(param['id'], **param))
-
-        #     elif param['type'] == 'storage':
-
-        #         self.region_objects.append(Storage(param['id'], **param))
-
-        #     elif param['type'] == 'load':
-
-        #         self.region_objects.append(Load(**param))
+       
 
 
     def build_region_model(self): 
@@ -121,59 +88,6 @@ class Region_node():
 
             return model
 
-    # pass transmission to the balancing constraint?
-    # or because the variable is created in the transmission class and added to the pyomo model, it should be accessible as model.x_trans...
-    def balancing_constraint(self, model): 
-
-        # constraint 1: generation-demand balancing
-        self.model.gen_to_demand_rule = pyomo.ConstraintList()
-
-        for gf in self.model.gf:
-            for t in self.model.t:
-                generation_term += self.model.x_generation[gf, t]
-        
-        solar_term = pyomo.quicksum((Solar.model.c_solarCap + self.region_objects.Solar.model.x_solarNew[s,c]) * self.region_objects.Solar.model.c_solarCF[s,t]
-            for s in self.model.src 
-            for t in self.model.t
-            for c in self.model.cc) 
-             
-        wind_term = pyomo.quicksum((self.region_objects.Wind.model.c_windCap + self.region_objects.Wind.model.x_windNew[w,c]) * self.region_objects.Wind.model.c_windCF[w,t] 
-            for w in self.model.wrc 
-            for c in self.model.cc
-            for t in self.model.t) 
-        
-        storage_term = pyomo.quicksum(self.region_objects.Storage.model.x_stordischarge[t] - self.region_objects.Storage.model.x_storcharge[t] 
-            for t in self.model.t)
-
-        # how to handle region sets in the region nodes 
-        ## include some region_id check in the model.o, model.r, and model.p sets?
-        export_term = pyomo.quicksum(Transmission.model.x_trans[o,r,t] * Transmission.model.c_transLoss 
-            for o in model.o 
-            for r in model.r 
-            for t in model.t)
-
-        for r in model.r: 
-            for p in model.p: 
-                for t in model.t:
-                    import_term += Transmission.model.x_trans[r,p,t] 
-        
-        for t in self.model.t: 
-            demand_term += self.region_objects.Load.model.c_demandLoad[t]
-        
-        constraint_expr = (generation_term 
-            + solar_term 
-            + wind_term 
-            + storage_term
-            + import_term
-            - export_term
-            - transmission_term
-            - demand_term
-            ) == 0
-				
-        self.model.gen_to_demand_rule.add(constraint_expr)
-
-        return model		
-
 
 class Generators():
 
@@ -188,7 +102,7 @@ class Generators():
 
         #TODO: we need unique way to identify each generator in each region
         self.region_id = region_id
-   self.gen_fuel_type = []
+        self.gen_fuel_type = []
         hold_gen_cost = []
         hold_gen_capacity = []
         
@@ -197,11 +111,12 @@ class Generators():
             hold_fuel = val.get('type', 0)
             self.gen_fuel_type.append(hold_fuel)
 
-            hold_cost = val.get('cost', 0)
-            hold_gen_cost.append(hold_cost)
+            hold_values = val.get('values', {})
+            hold_gen_cost = hold_values.get('capacity',0)
+            hold_gen_capacity = hold_values.get('capacity',0)
 
-            hold_gen_capacity = val.get('capacity',0)
-            hold_gen_capacity.append(hold_capacity)
+            hold_gen_cost.append(hold_gen_cost)            
+            hold_gen_capacity.append(hold_gen_capacity)
             
         self.gen_cost = dict(zip(self.gen_fuel_type, hold_gen_cost))        
         self.gen_capacity = dict(zip(self.gen_fuel_type, hold_gen_capcity))
@@ -213,33 +128,31 @@ class Generators():
 
     def parameters(self, model):
 
-        model.c_gencost = pyomo.Param(self.model.gf, initialize=self.gen_cost)
+        model.c_gencost = pyomo.Param(model.gf, initialize=self.gen_cost)
 
-        model.c_genMax = pyomo.Param(self.model.gf, initialize=self.gen_capacity)
+        model.c_genMax = pyomo.Param(model.gf, initialize=self.gen_capacity)
 
         return model 
 
     def variables(self, model):
 
-        model.x_generation = pyomo.Var(model.gf, model.t, within = (pyomo.NonNegativeReals))
-
-        return model
+       model.x_generation = pyomo.Var(model.gf, model.t, within = (pyomo.NonNegativeReals))
 
     def objective(self, model):
 
         gen_cost_indices = [gf for gf in model.gf if (gf) in model.c_gencost]
 
-        gen_cost_term = 0
+        self.gen_cost_term = 0
 
         gen_cost_term = pyomo.quicksum(model.x_generation[gf, t] * model.c_gencost[gf] 
             for gf in gen_cost_indices
             for t in model.t)
 
-        return gen_cost_term
+        return self.gen_cost_term
 
     def constraints(self, model):
 
-        self.model.gen_limits_rule = pyomo.ConstraintList()
+        model.gen_limits_rule = pyomo.ConstraintList()
         
         constraint_expr = pyomo.quicksum(
             model.c_genMax[gf] - model.x_generation[gf, t]
@@ -247,7 +160,7 @@ class Generators():
             for t in model.t
         ) >= 0
                         
-        self.model.gen_limits_rule.add(constraint_expr)
+        model.gen_limits_rule.add(constraint_expr)
 
         return model
             
@@ -267,7 +180,7 @@ class Solar():
             hold_id = k.get('id', 0)
             self.resource_id.append(hold_id)
 
-            hold_values = kwargs.get('values', {})
+            hold_capacity_factor = kwargs.get('capacity_factor', {})
             
             hold_cost_class = hold_values.keys()
             hold_
@@ -292,15 +205,15 @@ class Solar():
 
     def sets(self,model): 
 
-        self.model.src = pyomo.Set(initialize=self.resource_id)
-        self.model.cc = pyomo.Set(initialize=self.cost_class)
+        model.src = pyomo.Set(initialize=self.resource_id)
+        model.cc = pyomo.Set(initialize=self.cost_class)
 
     def parameters(self, model): 
 
         model.c_solarCap = pyomo.Param(initialize=self.installed_capacity)
-        model.c_solarCF = pyomo.Param(self.model.src, self.model.t, initialize=self.cf)
-        model.c_solarMax = pyomo.Param(self.model.src, self.model.cc, initialize=self.max_capacity)
-        model.c_solarCost = pyomo.Param(self.model.src, self.model.cc, initialize=self.cost)
+        model.c_solarCF = pyomo.Param(model.src, model.t, initialize=self.cf)
+        model.c_solarMax = pyomo.Param(model.src, model.cc, initialize=self.max_capacity)
+        model.c_solarCost = pyomo.Param(model.src, model.cc, initialize=self.cost)
 
         return model
         
@@ -314,7 +227,7 @@ class Solar():
 
     def objective(self, model):
 
-        solar_cost_indices = [(s,c) for s in self.model.src for c in self.model.cc if (r,s,c) in self.model.c_solarCost]
+        solar_cost_indices = [[s][c] for s in self.model.src for c in self.model.cc if [r][s][c] in self.model.c_solarCost]
         
         solar_cost_term = pyomo.quicksum(
             self.model.c_solarCost[s,c] * self.model.x_solarNew[s,c] 
@@ -556,6 +469,7 @@ class model_opt():
         self.graph = graph
         self.time_periods = periods.get('hours',[])
         self.region_list = graph.node.keys()
+        self.model = None
 
         if self.graph and self.periods: 
 
@@ -563,7 +477,7 @@ class model_opt():
 
     def build(self, **kwargs): 
 
-        #! we are building nodes and transmission objects in build_grid. THese classes uses "pynomo model" but if you see
+        #! we are building nodes and transmission objects in build_grid. THese classes uses "pyomo model" but if you see
         #! the pynomo model is initialised after building_grid it will through error
         self.build_grid()
         
@@ -578,15 +492,15 @@ class model_opt():
         for region_id, region_data in graph._node.items(): 
 
             #TODO: Make a node dict in class model_opt
-            region_data['object'] = region_node(region_id, network_graph, **region_data)
+            region_data['object'] = Region_node(region_id, network_graph, **region_data)
 
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
             #TODO: Make a transmission dict with key as object of node class for source and value as object of node class for target
-                link['object'] = transmission(source, target, **link)
+                link['object'] = Transmission(source, target, **link)
 
-    def build_model(self, *kwargs): 
+    def build_model(self, **kwargs): 
 
         # create model instance
         self.model = pyomo.ConcreteModel()
@@ -610,6 +524,8 @@ class model_opt():
 
         self.global_sets()
 
+        self.local_sets()
+
     def global_sets(self, model): 
 
         self.model.t = pyomo.Set(initialize=self.time_periods)
@@ -617,16 +533,22 @@ class model_opt():
         self.model.o = pyomo.Set(initialize=self.model.r)
         self.model.p = pyomo.set(initialize=self.model.r)
 
+        return model
+
+    def local_sets(self, model): 
+
+        hold = []
+
     # add all variables cretaed in each node and link to the model
-    def build_variables(self, **kwargs): 
+    def build_variables(self, model): 
 
         for r in region_node(): 
 
-            hold = ()
+            r.variables()
 
-        for r in transmission(): 
+        for l in transmission(): 
         
-            hold = ()
+            l.variables()
 
     # add all objective terms created in each node and link to the model
     def build_objective(self, **kwargs): 
@@ -663,6 +585,60 @@ class model_opt():
 
     # add region energy balancing constratint for each node to the model
     def region_balancing_constraints(self, model): 
+
+        # pass transmission to the balancing constraint?
+        # or because the variable is created in the transmission class and added to the pyomo model, it should be accessible as model.x_trans...
+
+        # constraint 1: generation-demand balancing
+        self.model.gen_to_demand_rule = pyomo.ConstraintList()
+
+        for gf in self.model.gf:
+            for t in self.model.t:
+                generation_term += self.model.x_generation[gf, t]
+        
+        solar_term = pyomo.quicksum((Solar.model.c_solarCap + self.region_objects.Solar.model.x_solarNew[s,c]) * self.region_objects.Solar.model.c_solarCF[s,t]
+            for s in self.model.src 
+            for t in self.model.t
+            for c in self.model.cc) 
+             
+        wind_term = pyomo.quicksum((self.region_objects.Wind.model.c_windCap + self.region_objects.Wind.model.x_windNew[w,c]) * self.region_objects.Wind.model.c_windCF[w,t] 
+            for w in self.model.wrc 
+            for c in self.model.cc
+            for t in self.model.t) 
+        
+        storage_term = pyomo.quicksum(self.region_objects.Storage.model.x_stordischarge[t] - self.region_objects.Storage.model.x_storcharge[t] 
+            for t in self.model.t)
+
+        # how to handle region sets in the region nodes 
+        ## include some region_id check in the model.o, model.r, and model.p sets?
+        export_indices = [r for r in self.model.r if r == self.region_id]
+
+        export_term = pyomo.quicksum(Transmission.model.x_trans[o,r,t] * Transmission.model.c_transLoss 
+            for o in model.o 
+            for r in model.r 
+            for t in model.t)
+
+        for r in model.r: 
+            for p in model.p: 
+                for t in model.t:
+                    import_term += Transmission.model.x_trans[r,p,t] 
+        
+        for t in self.model.t: 
+            demand_term += self.region_objects.Load.model.c_demandLoad[t]
+        
+        constraint_expr = (generation_term 
+            + solar_term 
+            + wind_term 
+            + storage_term
+            + import_term
+            - export_term
+            - transmission_term
+            - demand_term
+            ) == 0
+				
+        self.model.gen_to_demand_rule.add(constraint_expr)
+
+        return model
 
         for r in region_node(): 
             constraint_expr = region_node.balancing_constraints()
