@@ -20,7 +20,7 @@ class RegionNode():
                 param = d['parameters']
                 if str(class_name) not in  class_dict_for_region:
                     self.region_objects[str(class_name)] = []
-                self.region_objects[str(class_name)].append(class_name(self.region_id, **param))
+                self.region_objects[str(class_name)].append(class_name(self.region_id, *param))
 
 
     def sets(self, model): 
