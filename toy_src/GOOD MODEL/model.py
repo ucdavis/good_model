@@ -27,6 +27,7 @@ class Model:
 
     def build_model(self):
         self.build_sets()
+        self.build_paramaters()
         self.build_variables()
         self.build_objective()
         self.build_constraints()
@@ -42,6 +43,8 @@ class Model:
         pass
 
     def build_constraints(self):
+
+
         pass
 
     def solve_model(self, solver_name="glpk"):

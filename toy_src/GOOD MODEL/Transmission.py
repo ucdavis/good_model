@@ -1,4 +1,5 @@
 import pyomo.environ as pyomo
+import utils
 
 class Transmission:
     def __init__(self, source, target, **kwargs):
@@ -7,7 +8,7 @@ class Transmission:
         self.link_id = f'{source}_{target}'
         self.capacity = kwargs.get('capacity', 1)
         self.cost = kwargs.get('cost', 1)
-        self.efficiency = kwargs.get('efficiency', 1)
+        self.efficiency = utils.transmission_efficiency
 
     def parameters(self, model):
         # Fixed parameter initialization to reference self attributes

@@ -6,7 +6,7 @@ class Solar:
         self.resource_id = []
         self.cost_class = []
         self.installed_capacity = {}
-        self.cf = {}
+        self.gen_profile = {}
         self.max_capacity = {}
         self.cost = {}
 
@@ -20,7 +20,7 @@ class Solar:
 
             # Installed capacity and capacity factor for each resource
             self.installed_capacity[resource_id] = data.get('capacity', 0)
-            self.cf[resource_id] = data.get('capacity_factor', {})
+            self.gen_profile[resource_id] = data.get('generation_profile', {})
 
             # Max capacity and cost for each cost class
             for cost_class, info in values.items():
@@ -35,13 +35,18 @@ class Solar:
         model.cc = pyomo.Set(initialize=self.cost_class)
 
     def parameters(self, model):
+        # parameters are indexed based on the data structure passed via initialize
+        # if the data is: 
+        ## nested dictionary, ex: model.c_solarprofile[s][t]
+        ## tuple dictionary, ex: model.c_solarprofile[s,t]
         model.c_solarCap = pyomo.Param(model.src, initialize=self.installed_capacity)
-        model.c_solarCF = pyomo.Param(model.src, model.t, initialize=self.cf)
+        model.c_solarprofile = pyomo.Param(model.src, model.t, initialize=self.gen_profile)
         model.c_solarMax = pyomo.Param(model.src, model.cc, initialize=self.max_capacity)
         model.c_solarCost = pyomo.Param(model.src, model.cc, initialize=self.cost)
 
     def variables(self, model):
-        model.x_solarnew = pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals)
+        # decision variables all indexed as, ex: model.x_solarNew[s,c]
+        model.x_solarNew = pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals)
         # Removed unnecessary use of setattr; directly assign the variable
 
     def objective(self, model):

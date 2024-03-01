@@ -19,3 +19,7 @@ class_dict_for_region = {
     'storage': Storage,
     'load': Load,
 }
+
+storage_efficiency = 0.7
+
+transmission_efficiency = 0.972
