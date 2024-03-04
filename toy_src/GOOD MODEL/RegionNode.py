@@ -26,17 +26,17 @@ class RegionNode():
     def sets(self, model): 
 
         for obj in self.region_objects: 
-            model = obj.sets(model)
+            obj.sets(model)
         return model
 
     def parameters(self, model): 
         for obj in self.region_objects: 
-            model = obj.parameters(model)
+           obj.parameters(model)
         return model
     
     def variables(self, model): 
         for obj in self.region_objects: 
-            model = obj.variables(model)
+            obj.variables(model)
         return model
 
     def objective(self, model): 
@@ -48,7 +48,7 @@ class RegionNode():
     def region_object_constraints(self, model):
 
         for obj in self.region_objects: 
-            model = obj.constraints(model)
+           obj.constraints(model)
         return model
 
 

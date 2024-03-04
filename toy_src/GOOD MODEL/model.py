@@ -1,10 +1,12 @@
 import pyomo.environ as pyomo
 from RegionNode import RegionNode
 from Transmission import Transmission
+import utils
+
 class Model:
-    def __init__(self, graph, periods):
+    def __init__(self, graph):
         self.graph = graph
-        self.time_periods = periods.get('hours', [])
+        self.time_periods = utils.time_periods
         self.region_list = list(graph.nodes.keys())  # Corrected from graph.node.keys()
         self.model = pyomo.ConcreteModel()
 
@@ -20,9 +22,11 @@ class Model:
         self.network_data = self.graph
 
         for region_id, region_data in self.graph.nodes(data=True):  # Corrected iteration over nodes
+            
             self.region_data['object'] = RegionNode(region_id, **region_data)
 
         for source, target, links in self.graph.edges(data=True):  # Corrected iteration over edges
+
             self.links['object'] = Transmission(source, target, **link)
 
     def build_model(self):
@@ -37,7 +41,7 @@ class Model:
 
         self.build_constraints()
 
-    def build_sets(self, model):
+    def build_sets(self):
 
         self.global_sets()
 
@@ -68,24 +72,32 @@ class Model:
     
     def build_variables(self,model):
 
-        for obj in region_data: 
-            
-            obj.variables()
+	    for node in self.graph.node.values():
 
-        for edge in links: 
+		    self.model = node['object'].variables(self.model)
 
-            edge.variables()
+	    for source, adjacency in self.graph.adj.items():
+
+		    for target, link in adjacency.items():
+
+			    self.model = link['object'].variables(self.model)
 
 
-    def build_objective(self,model):
+    def build_objective(self):
         
-        for obj in region_data: 
+        objective_function = 0 
+        
+        for node in self.graph.node.values(): 
 
-            obj.objective()
+            objective_function += node['object'].objective(self.model)
 
-        for edge in links: 
+        for source, adjacency in self.graph.adj.items():
 
-            edge.objective()
+            for target, link in adjacency.items(): 
+
+                objective_function += link['object'].objective(self.model)
+
+        self.model.obj_func = pyomo.Objective(expr=objective_function)
 
     def build_constraints(self, model):
 
@@ -97,17 +109,34 @@ class Model:
 
     def local_constraints(self, model): 
 
-        for obj in region_data: 
-
-            obj.constraints()
+        for node in self.graph.node.values(): 
+            
+            node['object'].constraints(self.model)
 
     def transmission_constraints(self, model): 
 
-        for edge in links: 
+        for source, adjacency in self.graph.adj.items():
 
-            edge.constraints()
+            for target, link in adjacency.items():  
+
+                link['object'].constraints(self.model)
 
     def region_balancing_constraint(self, model): 
+
+        for source, adjacency in self.graph.adj.items(): 
+
+            source_node = self.graph.node[source]
+
+            for target, link in adjacency.items(): 
+
+                target_node = self.graph.node[target]
+
+                object_data = source_node.get('object')
+
+
+
+        for region_id, region_data in self.graph.node.items(): 
+            region = region_data.get('object', [])
 
         # constraint 1: generation-demand balancing
         self.model.gen_to_demand_rule = pyomo.ConstraintList()
