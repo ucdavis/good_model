@@ -48,18 +48,23 @@ class Solar:
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_solarNew[s,c]
         model.x_solarNew = pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals)
-        # Removed unnecessary use of setattr; directly assign the variable
+
 
     def objective(self, model):
         # Simplify the construction of the objective function
-        solar_cost_term = pyomo.summation(model.c_solarCost, model.x_solarnew)
+        solar_cost_term = pyomo.quicksum(
+            model.c_solarCost[s][c] * model.x_solarNew[s,c] 
+            for s in model.src 
+            for c in model.cc) 
+            
         return solar_cost_term
 
     def constraints(self, model):
         model.solar_install_limits_rule = pyomo.ConstraintList()
 
-        for s, c in self.max_capacity.keys():
-            constraint_expr = model.c_solarMax[s, c] - model.x_solarnew[s, c] >= 0
-            model.solar_install_limits_rule.add(constraint_expr)
+        for s in model.src: 
+            for c in model.cc: 
+                constraint_expr = model.c_solarMax[s][c] - model.x_solarnew[s, c] >= 0
+                model.solar_install_limits_rule.add(constraint_expr)
 
         # Additional constraints for installed capacity if needed

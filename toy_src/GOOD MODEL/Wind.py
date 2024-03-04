@@ -29,8 +29,11 @@ class Wind:
 
     def objective(self, model):
         # Simplified objective function to correctly sum wind generation and transmission costs
-        wind_cost_term = pyomo.summation(model.c_windCost, model.x_windnew) + pyomo.summation(model.c_windTransCost, model.x_windnew)
-        return wind_cost_term
+        wind_cost_term = pyomo.quicksum(
+            (model.x_windCost[w][c] + model.x_windTransCost[w][c]) * mode.x_windNew[w,c]
+            for w in model.wrc
+            for c in model.cc
+            ) 
 
     def constraints(self, model):
         # Corrected and simplified constraints definition
@@ -38,6 +41,5 @@ class Wind:
 
         for w in model.wrc:
             for c in model.cc:
-                if (w, c) in model.c_windMax:
-                    constraint_expr = model.c_windMax[w][c] - model.x_windnew[w, c] >= 0
+                    constraint_expr = (model.c_windMax[w][c] - model.x_windnew[w, c]) >= 0
                     model.wind_install_limits_rule.add(constraint_expr)

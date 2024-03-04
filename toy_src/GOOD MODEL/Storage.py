@@ -23,6 +23,9 @@ class Storage:
         model.x_storCharge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
         model.x_storDischarge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
 
+    def objective(self, model): 
+        pass 
+   
     def constraints(self, model):
         # Max storage constraint
         model.maxStorage_rule = pyomo.ConstraintList()
