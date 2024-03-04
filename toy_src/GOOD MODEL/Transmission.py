@@ -5,27 +5,30 @@ class Transmission:
     def __init__(self, source, target, **kwargs):
         self.source = source
         self.target = target
-        self.link_id = f'{source}_{target}'
         self.capacity = kwargs.get('capacity', 1)
         self.cost = kwargs.get('cost', 1)
         self.efficiency = utils.transmission_efficiency
 
+    def sets(self, model):
+        pass
+    
     def parameters(self, model):
-        # Fixed parameter initialization to reference self attributes
-        if not hasattr(model, 'c_transCost'):
-            model.c_transCost = pyomo.Param(model.trans_links, initialize=lambda m, s, t: self.cost if (s, t) == (self.source, self.target) else 0, within=pyomo.Reals)
-            model.c_transCap = pyomo.Param(model.trans_links, initialize=lambda m, s, t: self.capacity if (s, t) == (self.source, self.target) else 0, within=pyomo.Reals)
-            model.c_transEff = pyomo.Param(model.trans_links, initialize=lambda m, s, t: self.efficiency if (s, t) == (self.source, self.target) else 1, within=pyomo.Reals)
+
+        model.c_transCost = pyomo.Param(source, target, model.t, initialize=self.cost)
+        model.c_transCap = pyomo.Param(source, target, model.t, initialize=self.capacity)
+        model.c_transEff = pyomo.Param(initialize=self.efficiency)
 
     def variables(self, model):
         # Assuming model.trans_links is a set of (source, target) tuples
         # Correct variable definition without using setattr incorrectly
-        if not hasattr(model, 'x_trans'):
-            model.x_trans = pyomo.Var(model.trans_links, model.t, within=pyomo.NonNegativeReals)
+        model.x_trans = pyomo.Var(source, target, model.t, within=pyomo.NonNegativeReals)
 
     def objective(self, model):
         # Simplify the objective function to accumulate transmission costs correctly
-        transmission_cost_term = sum(model.x_trans[s, t, time] * model.c_transCost[s, t] for s, t in model.trans_links for time in model.t)
+        transmission_cost_term = pyomo.quicksum(model.x_trans[r,o,t] * model.c_transCost[r,o,t] 
+            for r in source
+            for o in target
+            for t in model.t)
         return transmission_cost_term
 
     def constraints(self, model):

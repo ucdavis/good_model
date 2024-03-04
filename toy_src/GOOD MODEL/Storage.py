@@ -24,27 +24,40 @@ class Storage:
         model.x_storDischarge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
 
     def constraints(self, model):
-        # Corrected and simplified constraint definitions
-        model.maxStorage_rule = pyomo.ConstraintList()
-        model.storageSOC_rule = pyomo.ConstraintList()
-        model.stor_flowIN_rule = pyomo.ConstraintList()
-        model.stor_flowOUT_rule = pyomo.ConstraintList()
-
         # Max storage constraint
+        model.maxStorage_rule = pyomo.ConstraintList()
+        
         for t in model.t:
             model.maxStorage_rule.add(model.x_storSOC[t] <= model.c_storCap)
 
         # Storage state-of-charge constraint
+        model.storageSOC_rule = pyomo.ConstraintList()
+        
         for t in model.t:
-            if t == model.t.first():  # Assuming model.t is an ordered set
+            if t == min(model.t):  # Assuming model.t is an ordered set
                 model.storageSOC_rule.add(model.x_storSOC[t] == 0)
             else:
-                prev_t = model.t.prev(t)
-                model.storageSOC_rule.add(
-                    model.x_storSOC[t] == model.x_storSOC[prev_t] + model.x_storCharge[prev_t] * model.c_storEff - model.x_storDischarge[prev_t]
-                )
+                t_1 = t-1
+                constraint_expr = (
+                    model.x_storSOC[t] - model.x_storSOC[t_1] - model.x_storIn[t_1] * model.c_storEff + model.x_storOut[t_1]  
+                ) == 0
 
-        # Storage flow-in (charge) and flow-out (discharge) constraints
-        for t in model.t:
-            model.stor_flowIN_rule.add(model.x_storCharge[t] <= model.c_storFlowCap)
-            model.stor_flowOUT_rule.add(model.x_storDischarge[t] <= model.c_storFlowCap)
+                model.storageSOC_rule.add(constraint_expr)
+
+        # Storage flow-in (charge)  constraints
+        model.stor_flowIN_rule = pyomo.ConstraintList()
+        
+        constraint_expr = (pyomo.quicksum(model.c_storCap * model.c_storFlowCap - model.x_storIn[t] 
+            for t in self.model.t) 
+        ) >= 0 
+        model.stor_flowIN_rule.add(constraint_expr)
+
+        # Storage  flow-out (discharge) constraints
+        model.stor_flowOUT_rule = pyomo.ConstraintList()
+        
+        constraint_expr = pyomo.quicksum(
+            model.c_storCap * model.c_storFlowCap - model.x_storOut[t]
+            for t in self.model.t
+        ) >= 0
+                
+        model.stor_flowOUT_rule.add(constraint_expr)

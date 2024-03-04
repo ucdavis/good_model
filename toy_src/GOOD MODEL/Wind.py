@@ -39,5 +39,5 @@ class Wind:
         for w in model.wrc:
             for c in model.cc:
                 if (w, c) in model.c_windMax:
-                    constraint_expr = model.c_windMax[w, c] - model.x_windnew[w, c] >= 0
+                    constraint_expr = model.c_windMax[w][c] - model.x_windnew[w, c] >= 0
                     model.wind_install_limits_rule.add(constraint_expr)

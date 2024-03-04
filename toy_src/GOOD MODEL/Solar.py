@@ -1,4 +1,5 @@
 import pyomo.environ as pyomo
+import utils
 
 class Solar:
     def __init__(self, region_id, *solar_data):
@@ -24,8 +25,8 @@ class Solar:
 
             # Max capacity and cost for each cost class
             for cost_class, info in values.items():
-                self.max_capacity[(resource_id, cost_class)] = info.get('max_capacity', 0)
-                self.cost[(resource_id, cost_class)] = info.get('cost', 0)
+                self.max_capacity[resource_id][cost_class] = info.get('max_capacity', 0)
+                self.cost[resource_id][cost_class] = info.get('cost', 0)
 
         # Removing duplicate entries in cost_class list if any
         self.cost_class = list(set(self.cost_class))
