@@ -31,8 +31,8 @@ class Generator:
 
     def objective(self, model):
         gen_cost_indices = [gf for gf in model.gf if gf in model.c_gencost]
-        self.gen_cost_term = pyomo.quicksum(model.x_generation[gf, t] * model.c_gencost[gf] for gf in gen_cost_indices for t in model.t)
-        return self.gen_cost_term
+        gen_cost_term = pyomo.quicksum(model.x_generation[gf, t] * model.c_gencost[gf] for gf in gen_cost_indices for t in model.t)
+        return gen_cost_term
 
     def constraints(self, model):
         model.gen_limits_rule = pyomo.ConstraintList()
