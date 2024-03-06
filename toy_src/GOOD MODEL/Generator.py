@@ -9,7 +9,7 @@ class Generator:
         self.gen_capacity = {}
 
         for gen in generators:
-            fuel_type = gen.get('type', 'default')
+            fuel_type = gen.get('type', 'NG')
             values = gen.get('values', {})
             cost = values.get('cost', 0)
             capacity = values.get('capacity', 0)

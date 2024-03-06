@@ -4,14 +4,13 @@ import utils
 class Storage:
     def __init__(self, region_id, **kwargs):
         self.region_id = region_id
-        # Correctly extract parameters from kwargs
-        self.storage_capacity = kwargs.get('storage_capacity', 0)
+        self.storage_capacity = kwargs.get('capacity', 0)
         self.efficiency = utils.storage_efficiency
         self.cost = kwargs.get('cost', 0)
+        #key not present in data structure
         self.storage_flow_limit = kwargs.get('storage_flow_limit', 0)
 
     def parameters(self, model):
-        # Fixed incorrect self.model references and parameter initializations
         model.c_storCap = pyomo.Param(initialize=self.storage_capacity)
         model.c_storEff = pyomo.Param(initialize=self.efficiency)
         model.c_storCost = pyomo.Param(initialize=self.cost)

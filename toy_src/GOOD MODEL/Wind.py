@@ -3,14 +3,12 @@ import pyomo.environ as pyomo
 class Wind:
     def __init__(self, region_id, **kwargs):
         self.region_id = region_id
-        
-        # Assuming `kwargs` contains keys for installed_capacity, cf, max_capacity, cost, trans_cost
-        # Corrected the initialization from kwargs
+        #wind_install_capacity
         self.installed_capacity = kwargs.get('installed_capacity', 0)
-        self.gen_profile = kwargs.get('generation_profile', 0)
+        self.gen_profile = kwargs.get('generation_profile', {})
         self.max_capacity = kwargs.get('max_capacity', {})
         self.cost = kwargs.get('cost', {})
-        self.trans_cost = kwargs.get('trans_cost', {})
+        self.trans_cost = kwargs.get('transmission_cost', {})
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -30,7 +28,7 @@ class Wind:
     def objective(self, model):
         # Simplified objective function to correctly sum wind generation and transmission costs
         wind_cost_term = pyomo.quicksum(
-            (model.x_windCost[w][c] + model.x_windTransCost[w][c]) * mode.x_windNew[w,c]
+            (model.x_windCost[w][c] + model.x_windTransCost[w][c]) * model.x_windNew[w,c]
             for w in model.wrc
             for c in model.cc
             ) 
