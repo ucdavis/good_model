@@ -4,14 +4,22 @@ from Transmission import Transmission
 import utils
 
 class Model:
-    def __init__(self, graph):
+    def __init__(self, graph, sets):
         self.graph = graph
+        self.sets = sets
         self.time_periods = utils.time_periods
         self.region_list = list(graph.nodes.keys())  # Corrected from graph.node.keys()
-        self.model = pyomo.ConcreteModel()
+        self.solar_ids = self.sets.get('solar_resource_class', [])
+        self.wind_ids = self.sets.get('wind_resource_class', [])
+        self.cost_class_ids = self.sets.get('cost_class', [])
+        self.generator_type = self.sets.get('generator_type', [])
+        self.gen_fue_type = self.sets.get('gen_fuel_tye', [])
+
 
         # Check for non-empty graph and periods, then build
-        if self.graph and self.time_periods:
+        if self.graph and self.time_periods and self.sets:
+
+            self.model = pyomo.ConcreteModel()
             self.build()
 
     def build(self):
@@ -53,6 +61,13 @@ class Model:
         self.model.r = pyomo.Set(initialize=self.region_list)
         self.model.o = pyomo.Set(initialize=self.model.r)
         self.model.p = pyomo.Set(initialize=self.model.r)
+        self.model.g = pyomo.Set(initialize=self.generator_type)
+        self.model.gf = pyomo.Set(initialize=self.gen_fuel_type)
+        self.model.src = pyomo.Set(initialize=self.solar_ids)
+        self.model.wrc = pyomo.Set(initialize=self.wind_id)
+        self.model.cc = pyomo.Set(initialize=self.cost_class_ids)
+
+
 
     def local_sets(self, model): 
 
