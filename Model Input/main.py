@@ -63,27 +63,34 @@ Plant_capacity_dic = plant_capacity(Plant_short)
 Wind_trans_capital_cost_final, Solar_trans_capital_cost_photov_final, Wind_capital_cost_copy, Solar_capital_cost_photov_copy = renewable_transmission_cost(Unit_Cost, Regional_Cost, Wind_capital_cost, Solar_capital_cost_photov)
 
 # %%
-
+# Make a copy of the DataFrame
+Region = Load['Region'].unique()
 transmision_oo = trans_object(Transmission_Capacity, Transmission_Cost)
 load_oo = load_object(Load_wide)
 generator_oo = gen_object(Plants_group)
 storage_oo = storage_object(Plants_group)
-solar_oo = solar_object(Solar_generation_profile_wide, Solar_capital_cost_photov, Solar_regional_capacity, Solar_capital_cost_photov_copy, Plants_group)
-wind_oo = wind_object(Wind_generation_profile_wide, Wind_capital_cost, Wind_onshore_capacity, Wind_capital_cost_copy,  Plants_group)
+solar_oo = solar_object(Solar_generation_profile_wide, Solar_capital_cost_photov, Solar_regional_capacity, Solar_capital_cost_photov_copy, Plants_group, Region)
+wind_oo = wind_object(Wind_generation_profile_wide, Wind_capital_cost, Wind_onshore_capacity, Wind_capital_cost_copy,  Plants_group, Region)
 
 # %% Saving output as JSON file
 # Define the file path for saving the JSON file
 input_file = 'all_input_objects.json'
 output_file = 'all_input_objects.json.gz'
 
+# Define an empty list to hold all dictionaries
+all_dicts = []
+
+# Append each dictionary to the list
+all_dicts.extend(load_oo)
+all_dicts.extend(generator_oo)
+all_dicts.extend(storage_oo)
+all_dicts.extend(solar_oo)
+all_dicts.extend(wind_oo)
+
 # Create a dictionary to hold all objects
 all_objects = {
-    'transmission_object': transmision_oo,
-    'load_object': load_oo,
-    'generator_object': generator_oo,
-    'storage_object': storage_oo,
-    'solar_object': solar_oo,
-    'wind_object': wind_oo
+    'nodal_object': all_dicts,
+    'link_object': transmision_oo,
 }
 
 

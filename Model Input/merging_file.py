@@ -454,17 +454,19 @@ def load_object(df):
 
         # Iterate through each hour and load data
         for hour, load in load_data.items():
-            load_hour = {'hour': hour, 'load': load}
+            load_hour = {hour: load}
             dependents.append(load_hour)
 
         # Append data to load_example list
-        load_example.append({'id': region_name, 'dependents': [{'data_type': 'load', 'parameters': dependents}]})
+        load_example.append({'id': region_name, 'dependents': [{'data_type': 'load', 'parameters': {'load': dependents}}]})
     return load_example
 
 
 def gen_object(df):
     gen_example = []  # List to store load data in the desired format
     df = df[df["PlantType"] != "Energy Storage"]
+    df = df[df["PlantType"] != "Solar PV"]
+    df = df[df["PlantType"] != "Onshore Wind"]
     # Iterate through each row of the dataframe
     for index, row in df.iterrows():
         region_name = row.iloc[0]  # First column contains the region name
@@ -474,7 +476,7 @@ def gen_object(df):
         capacity = row.iloc[4]
         group_id = row.iloc[12]
         # Append data to load_example list
-        gen_example.append({'id': region_name, 'dependents': [{'plant_type': plant_type, 'fuel_type': fuel_type, "cost": cost, "capacity": capacity, "group_id": group_id}]})
+        gen_example.append({'id': region_name, 'dependents': [{'data_type': "generators", 'parameters': [{'plant_type': plant_type, 'parameters': [{'fuel_type': fuel_type, 'values':{"cost": cost, "capacity": capacity, "group_id": group_id}}]}]}]})
     return gen_example
 
 
@@ -490,339 +492,144 @@ def storage_object(df):
         capacity = row.iloc[4]
         group_id = row.iloc[12]
         # Append data to load_example list
-        stor_example.append({'id': region_name, 'dependents': [{'data_type': plant_type, 'parameters':  [{"cost": cost,"capacity": capacity, "group_id": group_id}]}]})
+        stor_example.append({'id': region_name, 'dependents': [{'data_type': plant_type, 'parameters':  [{"cost": cost, "capacity": capacity}]}]})
     return stor_example
 
 
-def solar_object(df1, df2, df3, df4, Plants_group):
+def solar_object(df1, df2, df3, df4, Plants_group, Region):
     max_cap = Plants_group.groupby(["RegionName", "PlantType"])["Capacity"].sum().reset_index(drop=False)
     max_cap = max_cap[max_cap["PlantType"] == "Solar PV"].reset_index(drop=True)
-    # Example structure of DataFrames for reference
-    # df1 (generation_profile) might have columns: ['region_name', 'solar_cf', 'hour', 'value']
-    # df2 (solar_cost) might have columns: ['region_name', 'cost_class', 'value']
-    # df3 (solar_max_capacity) might have columns: ['region_name', 'cost_class', 'max_capacity']
-    # df4 (solar_installed_capacity) might have columns: ['region_name', 'value']
+    # Rename the first two columns in df1
+    df1 = df1.rename(columns={'Region Name': 'IPM Region', 'State Name': 'State'})
 
-    # Initialize an empty list to hold your dictionaries
-    solar_example = []
+    # Create 'New Resource Class' column and populate it in df2, df3, and df4
+    for df in [df2, df3, df4]:
+        df.sort_values(by=['IPM Region', 'State', 'Resource Class'], inplace=True)
+        df['New Resource Class'] = df.groupby('IPM Region').cumcount() + 1
 
-    # Assuming 'region_name' is common across all DataFrames and uniquely identifies each row,
-    # and that each DataFrame has been appropriately prepared to match the required structure.
-    for region_name in df1['Region Name'].unique():
-        # Filter each DataFrame for the current region
-        gen_profile_df = df1[df1['Region Name'] == region_name]
+    # Merge df1 with df2 on 'IPM Region', 'State', and 'Resource Class' columns
+    df1 = pd.merge(df1, df2[['IPM Region', 'State', 'Resource Class', 'New Resource Class']], how="left", on=["IPM Region", "State", "Resource Class"])
+    # Initialize an empty list to hold solar examples
+    solar_examples = []
+
+    # Iterate over each region name
+    for region_name in Region:
+        # Initialize a dictionary for the current region
+        region_data = {'id': region_name, 'dependents': []}
+
+        # Filter DataFrames for the current region
+        gen_profile_df = df1[df1['IPM Region'] == region_name]
         solar_cost_df = df2[df2['IPM Region'] == region_name]
         max_capacity_df = df3[df3['IPM Region'] == region_name]
         installed_capacity_df = max_cap[max_cap['RegionName'] == region_name]
-        trans_cost = df4[df4['IPM Region'] == region_name]
+        trans_cost_df = df4[df4['IPM Region'] == region_name]
 
-        # Initialize an empty dictionary to hold generation profiles for each resource class
-        generation_profiles = {}
+        # Add solar generation profile data
+        solar_gen_params = {'data_type': 'solar_gen', 'parameters': []}
+        for index, row in gen_profile_df.iterrows():
+            gen_profile = row.drop(['IPM Region', 'Resource Class', 'State', "New Resource Class"]).dropna().to_dict()
+            solar_gen_params['parameters'].append({'Resource Class': row['New Resource Class'], 'generation_profile': gen_profile})
+        region_data['dependents'].append(solar_gen_params)
 
-        # Extract resource classes from the DataFrame
-        resource_classes = gen_profile_df['Resource Class'].unique()
+        # Add solar cost data
+        solar_cost_params = {'data_type': 'solar_cost', 'parameters': []}
+        for index, row in solar_cost_df.iterrows():
+            cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
+            solar_cost_params['parameters'].append({'Resource Class': row['New Resource Class'], 'cost': cost_profile})
+        region_data['dependents'].append(solar_cost_params)
 
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = gen_profile_df[gen_profile_df['Resource Class'] == resource_class]
+        # Add solar max capacity data
+        solar_max_capacity_params = {'data_type': 'solar_max_capacity', 'parameters': []}
+        for index, row in max_capacity_df.iterrows():
+            max_capacity_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
+            solar_max_capacity_params['parameters'].append({'Resource Class ': row['New Resource Class'], 'max_capacity': max_capacity_profile})
+        region_data['dependents'].append(solar_max_capacity_params)
 
-            # Extract hourly generation profile for the resource class
-            hourly_generation_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for hour, value in row.iloc[3:].items():
-                    hourly_generation_profile[str(hour)] = value
+        # Add solar installed capacity data
+        solar_installed_capacity_params = {'data_type': 'solar_installed_capacity', 'parameters': []}
+        for index, row in installed_capacity_df.iterrows():
+            solar_installed_capacity_params['parameters'].append({'capacity': row['Capacity']})
+        region_data['dependents'].append(solar_installed_capacity_params)
 
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            generation_profiles[resource_class] = hourly_generation_profile
+        # Add solar transmission cost data
+        solar_transmission_cost_params = {'data_type': 'solar_transmission_cost', 'parameters': []}
+        for index, row in trans_cost_df.iterrows():
+            trans_cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
+            solar_transmission_cost_params['parameters'].append({'Resource Class': row['New Resource Class'], 'transmission_cost': trans_cost_profile})
+        region_data['dependents'].append(solar_transmission_cost_params)
 
-        # Initialize an empty dictionary to hold cost profiles for each resource class
-        cost_profiles = {}
+        # Append region data to solar examples
+        solar_examples.append(region_data)
 
-        # Extract resource classes from the DataFrame
-        resource_classes = solar_cost_df['Resource Class'].unique()
-
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = solar_cost_df[solar_cost_df['Resource Class'] == resource_class]
-
-            # Extract hourly generation profile for the resource class
-            cost_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for cost, value in row.iloc[3:].items():
-                    if pd.notna(value):  # Check if the value is not NaN
-                        cost_profile[str(cost)] = value
-
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            cost_profiles[resource_class] = cost_profile
-
-        # Initialize an empty dictionary to hold max capacity profiles for each resource class
-        cap_profiles = {}
-
-        # Extract resource classes from the DataFrame
-        resource_classes = max_capacity_df['Resource Class'].unique()
-
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = max_capacity_df[max_capacity_df['Resource Class'] == resource_class]
-
-            # Extract hourly generation profile for the resource class
-            cap_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for cost, value in row.iloc[3:].items():
-                    if pd.notna(value):  # Check if the value is not NaN
-                        cap_profile[str(cost)] = value
-
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            cap_profiles[resource_class] = cap_profile
-
-        # Initialize an empty dictionary to hold trans cost profiles for each resource class
-        trans_cost_profiles = {}
-
-        # Extract resource classes from the DataFrame
-        resource_classes = trans_cost['Resource Class'].unique()
-
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = trans_cost[trans_cost['Resource Class'] == resource_class]
-
-            # Extract hourly generation profile for the resource class
-            trans_cost_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for cost, value in row.iloc[3:].items():
-                    if pd.notna(value):  # Check if the value is not NaN
-                        trans_cost_profile[str(cost)] = value
-
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            trans_cost_profiles[resource_class] = trans_cost_profile
-
-        # Construct the dictionary for the current region
-        region_dict = {
-            'id': region_name,
-            'dependents': [
-                {
-                    'data_type': 'solar_cf',
-                    'parameters': [
-                        {
-                            'type': 'generation_profile',
-                            'generation_profile': generation_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'solar_cost',
-                    'parameters': [
-                        {
-                            'type': 'cost',
-                            'cost': cost_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'solar_max_capacity',
-                    'parameters': [
-                        {
-                            'type': 'max_capacity',
-                            'max_capacity': cap_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'solar_trans_cost',
-                    'parameters': [
-                        {
-                            'type': 'trans_cost',
-                            'max_capacity': trans_cost_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'solar_installed_capacity',
-                    'parameters': [
-                        {'RegionName': row['Capacity']} for _, row in installed_capacity_df.iterrows()
-                    ]
-                },
-            ]
-        }
-
-        # Add the constructed dictionary to the list
-        solar_example.append(region_dict)
-
-    # solar_example now contains your structured data based on the DataFrames
-
-    return solar_example
+    return solar_examples
 
 
-def wind_object(df1, df2, df3, df4, Plants_group):
-
+def wind_object(df1, df2, df3, df4, Plants_group, Region):
     max_cap = Plants_group.groupby(["RegionName", "PlantType"])["Capacity"].sum().reset_index(drop=False)
     max_cap = max_cap[max_cap["PlantType"] == "Onshore Wind"].reset_index(drop=True)
-    # Example structure of DataFrames for reference
-    # df1 (generation_profile) might have columns: ['region_name', 'wind_cf', 'hour', 'value']
-    # df2 (wind_cost) might have columns: ['region_name', 'cost_class', 'value']
-    # df3 (wind_max_capacity) might have columns: ['region_name', 'cost_class', 'max_capacity']
-    # df4 (wind_installed_capacity) might have columns: ['region_name', 'value']
 
-    # Initialize an empty list to hold your dictionaries
-    wind_example = []
+    # Rename the first two columns in df1
+    df1 = df1.rename(columns={'Region Name': 'IPM Region', 'State Name': 'State'})
 
-    # Assuming 'region_name' is common across all DataFrames and uniquely identifies each row,
-    # and that each DataFrame has been appropriately prepared to match the required structure.
-    for region_name in df1['Region Name'].unique():
-        # Filter each DataFrame for the current region
-        gen_profile_df = df1[df1['Region Name'] == region_name]
+    # Create 'New Resource Class' column and populate it in df2, df3, and df4
+    for df in [df2, df3, df4]:
+        df.sort_values(by=['IPM Region', 'State', 'Resource Class'], inplace=True)
+        df['New Resource Class'] = df.groupby('IPM Region').cumcount() + 1
+
+    # Merge df1 with df2 on 'IPM Region', 'State', and 'Resource Class' columns
+    df1 = pd.merge(df1, df2[['IPM Region', 'State', 'Resource Class', 'New Resource Class']], how="left", on=["IPM Region", "State", "Resource Class"])
+
+    # Initialize an empty list to hold solar examples
+    wind_examples = []
+
+    # Iterate over each region name
+    for region_name in Region:
+        # Initialize a dictionary for the current region
+        region_data = {'id': region_name, 'dependents': []}
+
+        # Filter DataFrames for the current region
+        gen_profile_df = df1[df1['IPM Region'] == region_name]
         wind_cost_df = df2[df2['IPM Region'] == region_name]
         max_capacity_df = df3[df3['IPM Region'] == region_name]
         installed_capacity_df = max_cap[max_cap['RegionName'] == region_name]
-        trans_cost = df4[df4['IPM Region'] == region_name]
+        trans_cost_df = df4[df4['IPM Region'] == region_name]
 
-        # Initialize an empty dictionary to hold generation profiles for each resource class
-        generation_profiles = {}
+        # Add solar generation profile data
+        solar_gen_params = {'data_type': 'wind_gen', 'parameters': []}
+        for index, row in gen_profile_df.iterrows():
+            gen_profile = row.drop(['IPM Region', 'Resource Class', 'State', "New Resource Class"]).dropna().to_dict()
+            solar_gen_params['parameters'].append({'Resource Class': row['New Resource Class'], 'generation_profile': gen_profile})
+        region_data['dependents'].append(solar_gen_params)
 
-        # Extract resource classes from the DataFrame
-        resource_classes = gen_profile_df['Resource Class'].unique()
+        # Add solar cost data
+        solar_cost_params = {'data_type': 'wind_cost', 'parameters': []}
+        for index, row in wind_cost_df.iterrows():
+            cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
+            solar_cost_params['parameters'].append({'Resource Class': row["New Resource Class"], 'cost': cost_profile})
+        region_data['dependents'].append(solar_cost_params)
 
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = gen_profile_df[gen_profile_df['Resource Class'] == resource_class]
+        # Add solar max capacity data
+        solar_max_capacity_params = {'data_type': 'wind_max_capacity', 'parameters': []}
+        for index, row in max_capacity_df.iterrows():
+            max_capacity_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
+            solar_max_capacity_params['parameters'].append({'Resource Class ': row["New Resource Class"], 'max_capacity': max_capacity_profile})
+        region_data['dependents'].append(solar_max_capacity_params)
 
-            # Extract hourly generation profile for the resource class
-            hourly_generation_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for hour, value in row.iloc[3:].items():
-                    hourly_generation_profile[str(hour)] = value
+        # Add solar installed capacity data
+        solar_installed_capacity_params = {'data_type': 'wind_installed_capacity', 'parameters': []}
+        for index, row in installed_capacity_df.iterrows():
+            solar_installed_capacity_params['parameters'].append({'capacity': row['Capacity']})
+        region_data['dependents'].append(solar_installed_capacity_params)
 
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            generation_profiles[resource_class] = hourly_generation_profile
+        # Add solar transmission cost data
+        solar_transmission_cost_params = {'data_type': 'wind_transmission_cost', 'parameters': []}
+        for index, row in trans_cost_df.iterrows():
+            trans_cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
+            solar_transmission_cost_params['parameters'].append({'Resource Class': row["New Resource Class"], 'transmission_cost': trans_cost_profile})
+        region_data['dependents'].append(solar_transmission_cost_params)
 
-        # Initialize an empty dictionary to hold cost profiles for each resource class
-        cost_profiles = {}
+        # Append region data to solar examples
+        wind_examples.append(region_data)
 
-        # Extract resource classes from the DataFrame
-        resource_classes = wind_cost_df['Resource Class'].unique()
-
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = wind_cost_df[wind_cost_df['Resource Class'] == resource_class]
-
-            # Extract hourly generation profile for the resource class
-            cost_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for cost, value in row.iloc[3:].items():
-                    if pd.notna(value):  # Check if the value is not NaN
-                        cost_profile[str(cost)] = value
-
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            cost_profiles[resource_class] = cost_profile
-
-        # Initialize an empty dictionary to hold max capacity profiles for each resource class
-        cap_profiles = {}
-
-        # Extract resource classes from the DataFrame
-        resource_classes = max_capacity_df['Resource Class'].unique()
-
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = max_capacity_df[max_capacity_df['Resource Class'] == resource_class]
-
-            # Extract hourly generation profile for the resource class
-            cap_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for cost, value in row.iloc[3:].items():
-                    if pd.notna(value):  # Check if the value is not NaN
-                        cap_profile[str(cost)] = value
-
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            cap_profiles[resource_class] = cap_profile
-
-        # Initialize an empty dictionary to hold trans cost profiles for each resource class
-        trans_cost_profiles = {}
-
-        # Extract resource classes from the DataFrame
-        resource_classes = trans_cost['Resource Class'].unique()
-
-        # Iterate over each resource class
-        for resource_class in resource_classes:
-            # Filter DataFrame for the current resource class
-            resource_class_df = trans_cost[trans_cost['Resource Class'] == resource_class]
-
-            # Extract hourly generation profile for the resource class
-            trans_cost_profile = {}
-            for index, row in resource_class_df.iterrows():
-                # Extract hour and value from each row and add to the dictionary
-                for cost, value in row.iloc[3:].items():
-                    if pd.notna(value):  # Check if the value is not NaN
-                        trans_cost_profile[str(cost)] = value
-
-            # Add the hourly generation profile to the dictionary with the resource class as key
-            trans_cost_profiles[resource_class] = trans_cost_profile
-
-        # Construct the dictionary for the current region
-        region_dict = {
-            'id': region_name,
-            'dependents': [
-                {
-                    'data_type': 'wind_cf',
-                    'parameters': [
-                        {
-                            'type': 'generation_profile',
-                            'generation_profile': generation_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'wind_cost',
-                    'parameters': [
-                        {
-                            'type': 'cost',
-                            'cost': cost_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'wind_max_capacity',
-                    'parameters': [
-                        {
-                            'type': 'max_capacity',
-                            'max_capacity': cap_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'wind_trans_cost',
-                    'parameters': [
-                        {
-                            'type': 'trans_cost',
-                            'max_capacity': trans_cost_profiles
-                        }
-                    ]
-                },
-                {
-                    'data_type': 'wind_installed_capacity',
-                    'parameters': [
-                        {'RegionName': row['Capacity']} for _, row in installed_capacity_df.iterrows()
-                    ]
-                },
-            ]
-        }
-
-        # Add the constructed dictionary to the list
-        wind_example.append(region_dict)
-
-    # wind_example now contains your structured data based on the DataFrames
-
-    return wind_example
+    return wind_examples
 

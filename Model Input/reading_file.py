@@ -1,3 +1,5 @@
+import pandas as pd
+import numpy as np
 def load_data():
     import pandas as pd
     # Define the paths to your files
