@@ -1,12 +1,14 @@
 # %%
+import os
+
 from reading_file import load_data
 from merging_file import (merging_data, assign_fuel_costs, fill_missing_fuel_costs, assign_em_rates, long_wide, transmission_func,
                           ffill_ren_cost, ffill_ren_cap, cluster_and_aggregate, long_wide_load, load_dic, wind_cap_dic, wind_cost_dic, solar_cap_dic,
-                          solar_cost_dic, storage_object, solar_object, wind_object, gen_object, load_object,trans_object, transmission_dic1, transmission_dic2, cp_dic, plant_dic, plant_capacity, trans_index, renewable_transmission_cost)
+                          solar_cost_dic, storage_object, solar_object, wind_object, gen_object, load_object, trans_object, transmission_dic1, cp_dic, plant_dic, plant_capacity, trans_index, renewable_transmission_cost)
 import json
 import numpy as np
-import gzip
-import shutil
+
+
 # %% Loading Input Data
 (Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity,
  Wind_capital_cost, Solar_regional_capacity, Solar_generation_profile, Solar_capital_cost_photov, Solar_capacity_factor, Regional_Cost, Unit_Cost) = load_data()
@@ -50,12 +52,6 @@ Transmission_Energy_final = transmission_dic1(Transmission_Energy)
 Solar_capacity_factor_final = cp_dic(Solar_generation_profile_wide)
 Wind_capacity_factor_final = cp_dic(Wind_generation_profile_wide)
 
-
-Transmission_Capacity_dic = transmission_dic1(Transmission_Capacity)
-Transmission_Energy_dic = transmission_dic1(Transmission_Energy)
-
-Transmission_Cost_dic = transmission_dic2(Transmission_Cost)
-
 Transmission_index = trans_index(Transmission_Capacity)
 
 Plant_capacity_dic = plant_capacity(Plant_short)
@@ -65,6 +61,7 @@ Wind_trans_capital_cost_final, Solar_trans_capital_cost_photov_final, Wind_capit
 # %%
 # Make a copy of the DataFrame
 Region = Load['Region'].unique()
+
 transmision_oo = trans_object(Transmission_Capacity, Transmission_Cost)
 load_oo = load_object(Load_wide)
 generator_oo = gen_object(Plants_group)
@@ -72,10 +69,23 @@ storage_oo = storage_object(Plants_group)
 solar_oo = solar_object(Solar_generation_profile_wide, Solar_capital_cost_photov, Solar_regional_capacity, Solar_capital_cost_photov_copy, Plants_group, Region)
 wind_oo = wind_object(Wind_generation_profile_wide, Wind_capital_cost, Wind_onshore_capacity, Wind_capital_cost_copy,  Plants_group, Region)
 
+# %% sets
+
+sets = {
+    'region': list(Transmission_Capacity.index.unique()),
+    'plant_type': list(Plants_ungroup[~Plants_ungroup["PlantType"].isin(["Solar PV", "Onshore Wind", "Energy Storage"])]["PlantType"].unique()),
+    'fuel_type': list(Plants_ungroup[~Plants_ungroup["PlantType"].isin(["Solar PV", "Onshore Wind", "Energy Storage"])]["FuelType"].unique()),
+    'solar_rc': list(Solar_regional_capacity["New Resource Class"].unique()),
+    'wind_rc': list(Wind_onshore_capacity["New Resource Class"].unique()),
+    'cost_class': list([1,2,3,4,5,6])
+}
+
+sorted_sets = {key: sorted(value) for key, value in sets.items()}
+
+
 # %% Saving output as JSON file
 # Define the file path for saving the JSON file
 input_file = 'all_input_objects.json'
-output_file = 'all_input_objects.json.gz'
 
 # Define an empty list to hold all dictionaries
 all_dicts = []
@@ -94,40 +104,29 @@ all_objects = {
 }
 
 
+# Convert all nested keys to strings
 def convert_keys_to_string(obj):
     if isinstance(obj, dict):
-        return {str(key) if not isinstance(key, np.int64) else str(int(key)): convert_keys_to_string(value) for key, value in obj.items()}
+        return {str(key) if not isinstance(key, (np.int64, np.int32)) else int(key): convert_keys_to_string(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [convert_keys_to_string(element) for element in obj]
     else:
         return obj
 
 
-# Convert all nested keys to strings
 all_objects_str_keys = convert_keys_to_string(all_objects)
 
 
 # Save all objects as JSON
-with open(input_file, 'w') as all_objects_file:
-    json.dump(all_objects_str_keys, all_objects_file)
+with open(input_file, 'w') as f:
+    json.dump(all_objects_str_keys, f)
 
-# Compress the JSON file using gzip
-with open(input_file, 'rb') as f_in:
-    with gzip.open(output_file, 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
+sorted_sets_str = {key: [str(item) for item in value] if isinstance(value, list) else int(value) if isinstance(value, (np.int64, int)) else str(value) for key, value in sorted_sets.items()}
 
+input_sets_sorted = 'all_input_sets_sorted.json'
 
-# # Read the JSON file
-# with open(input_file, 'r') as all_objects_file:
-#     loaded_objects = json.load(all_objects_file)
-#
-#
-# # Open the gzip-compressed file for reading
-# with gzip.open(input_file, 'rb') as f:
-#     # Read the contents of the file
-#     compressed_data = f.read()
-#
-# # Decode the compressed data as JSON
-# json_data = json.loads(compressed_data)
+# Make sure to use sorted_sets_str for JSON serialization
+with open(input_sets_sorted, 'w') as f:
+    json.dump(sorted_sets_str, f)
 
 # final 
