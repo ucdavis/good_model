@@ -1,4 +1,5 @@
 from .utils import class_dict_for_region
+import opt_model
 
 class RegionNode():
 
@@ -12,7 +13,6 @@ class RegionNode():
         self.build_region_objects()
 
     def build_region_objects(self): 
-        self.region_objects = []
 
         for d in self.dependents:
             if d['data_type'] in class_dict_for_region:
@@ -22,33 +22,54 @@ class RegionNode():
                     self.region_objects[str(class_name)] = []
                 self.region_objects[str(class_name)].append(class_name(self.region_id, *param))
 
-
     def sets(self, model): 
 
-        for obj in self.region_objects: 
-            obj.sets(model)
+        for key, obj_list in self.region_object.items(): 
+
+            for obj in obj_list:
+            
+                obj.sets(model)
+        
         return model
 
     def parameters(self, model): 
-        for obj in self.region_objects: 
-           obj.parameters(model)
+        
+        for key, obj_list in self.region_object.items(): 
+
+            for obj in obj_list:
+                
+                obj.parameters(model)
+        
         return model
     
     def variables(self, model): 
-        for obj in self.region_objects: 
-            obj.variables(model)
+        
+        for key, obj_list in self.region_object.items(): 
+
+            for obj in obj_list:
+                
+                obj.variables(model)
+        
         return model
 
     def objective(self, model): 
+        
         objective_function = 0
-        for obj in self.region_objects: 
-            objective_function += obj.objective(model)
+        
+        for key, obj_list in self.region_object.items(): 
+
+            for obj in obj_list:
+                objective_function += obj.objective(model)
+        
         return objective_function
 
     def region_object_constraints(self, model):
 
-        for obj in self.region_objects: 
-           obj.constraints(model)
+        
+        for key, obj_list in self.region_object.items(): 
+
+            for obj in obj_list:
+            
+                obj.constraints(model)
+        
         return model
-
-
