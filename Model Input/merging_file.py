@@ -438,7 +438,7 @@ def trans_object(df1, df2):
             # print("Capacity:", capacity)
 
             # Append data to link_example list
-            link_example.append({'origin': origin, 'destination': destination, 'cost': cost, 'capacity': capacity})
+            link_example.append({'source': origin, 'target': destination, 'cost': cost, 'capacity': capacity})
     return link_example
 
 
