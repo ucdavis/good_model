@@ -1,5 +1,4 @@
 import pyomo.environ as pyomo
-import utils
 import opt_model
 
 class Solar:

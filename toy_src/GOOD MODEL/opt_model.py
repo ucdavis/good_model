@@ -1,13 +1,13 @@
 import pyomo.environ as pyomo
 from RegionNode import RegionNode
 from Transmission import Transmission
-import utils
+import constants
 
 class Opt_Model:
     def __init__(self, graph, sets):
         self.graph = graph
         self.sets = sets
-        self.time_periods = utils.time_periods
+        self.time_periods = constants.time_periods
         self.region_list = list(graph.nodes.keys())  # Corrected from graph.node.keys()
         self.solar_ids = self.sets.get('solar_resource_class', [])
         self.wind_ids = self.sets.get('wind_resource_class', [])

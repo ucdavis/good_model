@@ -7,4 +7,5 @@ from . import Storage
 from . import Transmission
 from . import Load
 from . import RegionNode
-from . import utils
+from . import constants
+from . import class_mapping

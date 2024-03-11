@@ -1,12 +1,12 @@
 import pyomo.environ as pyomo
-import utils
+import constants
 import opt_model
 
 class Storage:
     def __init__(self, region_id, **kwargs):
         self.region_id = region_id
         self.storage_capacity = kwargs.get('capacity', 0)
-        self.efficiency = utils.storage_efficiency
+        self.efficiency = constants.storage_efficiency
         self.cost = kwargs.get('cost', 0)
         self.storage_flow_limit = utils.storage_flow_limit
 

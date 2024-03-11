@@ -1,5 +1,5 @@
 import pyomo.environ as pyomo
-import utils
+import constants
 import opt_model
 
 class Transmission:
@@ -8,7 +8,7 @@ class Transmission:
         self.target = target
         self.capacity = {source: {target: kwargs.get('capacity', 1)}}
         self.cost = {source: {target: kwargs.get('cost', 1)}}
-        self.efficiency = utils.transmission_efficiency
+        self.efficiency = constants.transmission_efficiency
 
     def sets(self, model):
         pass

@@ -1,4 +1,4 @@
-from .utils import class_dict_for_region
+from .class_mapping import class_dict_for_region
 import opt_model
 
 class RegionNode():
