@@ -99,8 +99,8 @@ all_dicts.extend(wind_oo)
 
 # Create a dictionary to hold all objects
 all_objects = {
-    'nodal_object': all_dicts,
-    'link_object': transmision_oo,
+    'nodes': all_dicts,
+    'links': transmision_oo,
 }
 
 
