@@ -31,7 +31,7 @@ class Transmission:
 
     def objective(self, model):
         # Simplify the objective function to accumulate transmission costs correctly
-        transmission_cost_var = getattr(model, self.var_name, self.var)
+        transmission_cost_var = getattr(model, self.var_name)
 
         transmission_cost_term = (transmission_cost_var[t] for t in model.t)
         

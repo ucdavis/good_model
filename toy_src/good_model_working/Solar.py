@@ -10,8 +10,6 @@ class Solar:
         self.max_capacity = {}
         self.cost = {}
 
-        print(self.cost)
-
         for data in solar_data:
             resource_id = data.get('id', 0)
             self.resource_id.append(resource_id)
@@ -31,10 +29,6 @@ class Solar:
 
         # Removing duplicate entries in cost_class list if any
         self.cost_class = list(set(self.cost_class))
-
-    def sets(self, model):
-        model.src = pyomo.Set(initialize=self.resource_id)
-        model.cc = pyomo.Set(initialize=self.cost_class)
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize

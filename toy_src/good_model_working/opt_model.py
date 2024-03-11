@@ -26,7 +26,6 @@ class Opt_Model:
         self.build_model(self.model)
 
     def build_grid(self):
-        self.network_data = self.graph
 
         for region_id, region_data in self.graph._node.items():  
             
