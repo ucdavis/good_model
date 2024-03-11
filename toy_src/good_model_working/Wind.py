@@ -1,5 +1,4 @@
 import pyomo.environ as pyomo
-import opt_model
 
 class Wind:
     def __init__(self, region_id, **kwargs):

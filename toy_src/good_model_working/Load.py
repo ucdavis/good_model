@@ -1,5 +1,6 @@
 import pyomo.environ as pyomo
 
+
 class Load:
     def __init__(self, region_id, **kwargs):
         self.region_id = region_id

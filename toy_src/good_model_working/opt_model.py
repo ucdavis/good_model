@@ -1,20 +1,17 @@
 import pyomo.environ as pyomo
-from RegionNode import RegionNode
-from Transmission import Transmission
-import utils
+from .utils import time_periods
 
 class Opt_Model:
     def __init__(self, graph, sets):
         self.graph = graph
         self.sets = sets
         self.time_periods = utils.time_periods
-        self.region_list = list(graph.nodes.keys())  # Corrected from graph.node.keys()
-        self.solar_ids = self.sets.get('solar_resource_class', [])
-        self.wind_ids = self.sets.get('wind_resource_class', [])
+        self.region_list = self.sets.get('region', [])
+        self.solar_ids = self.sets.get('solar_rc', [])
+        self.wind_ids = self.sets.get('wind_rc', [])
         self.cost_class_ids = self.sets.get('cost_class', [])
-        self.generator_type = self.sets.get('generator_type', [])
-        self.gen_fue_type = self.sets.get('gen_fuel_tye', [])
-
+        self.generator_type = self.sets.get('plant_type', [])
+        self.gen_fuel_type = self.sets.get('fuel_type', [])
 
         # Check for non-empty graph and periods, then build
         if self.graph and self.time_periods and self.sets:

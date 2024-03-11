@@ -1,29 +1,28 @@
 import pyomo.environ as pyomo
-import utils
 
 class Generator:
     def __init__(self, region_id, *generators):
         self.region_id = region_id
         self.gen_fuel_type = []
+        self.generator_type = []
         self.gen_cost = {}
         self.gen_capacity = {}
 
-        for gen in generators:
-            fuel_type = gen.get('type', 'NG')
-            values = gen.get('values', {})
-            cost = values.get('cost', 0)
-            capacity = values.get('capacity', 0)
+        for data in generators:
+            gen_id = data.get('plant_type', 0)
+            self.generator_type.append(gen_id)
 
-            self.gen_fuel_type.append(fuel_type)
-            self.gen_cost[fuel_type] = cost
-            self.gen_capacity[fuel_type] = capacity
+            values = data.get('parameters',{})
+            self.gen_fuel_type += list(values.keys())
 
-    def sets(self, model):
-        model.gf = pyomo.Set(initialize=self.gen_fuel_type)
+            for fuel_type, data in values.items(): 
+
+                self.gen_cost[gen_id][fuel_type] = data.get('cost', 0) 
+                self.gen_capacity[gen_id][fuel_type] = data.get('capacity')
 
     def parameters(self, model):
-        model.c_gencost = pyomo.Param(model.gf, initialize=self.gen_cost)
-        model.c_genMax = pyomo.Param(model.gf, initialize=self.gen_capacity)
+        model.c_gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost)
+        model.c_genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity)
 
 
     def variables(self, model):

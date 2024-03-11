@@ -1,6 +1,4 @@
 import pyomo.environ as pyomo
-import utils
-import opt_model
 
 class Solar:
     def __init__(self, region_id, *solar_data):
