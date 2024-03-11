@@ -1,11 +1,13 @@
 import pyomo.environ as pyomo
 from .utils import time_periods
+from .RegionNode import RegionNode
+from .Transmission import Transmission
 
 class Opt_Model:
     def __init__(self, graph, sets):
         self.graph = graph
         self.sets = sets
-        self.time_periods = utils.time_periods
+        self.time_periods = time_periods
         self.region_list = self.sets.get('region', [])
         self.solar_ids = self.sets.get('solar_rc', [])
         self.wind_ids = self.sets.get('wind_rc', [])
@@ -17,40 +19,41 @@ class Opt_Model:
         if self.graph and self.time_periods and self.sets:
 
             self.model = pyomo.ConcreteModel()
-            self.build()
+            self.build(self.model)
 
-    def build(self):
+    def build(self, model):
         self.build_grid()
-        self.build_model()
+        self.build_model(self.model)
 
     def build_grid(self):
         self.network_data = self.graph
 
-        for region_id, region_data in self.graph.nodes(data=True):  # Corrected iteration over nodes
+        for region_id, region_data in self.graph._node.items():  
             
-            self.region_data['object'] = RegionNode(region_id, **region_data)
+            region_data['object'] = RegionNode(region_id, **region_data)
 
-        for source, target, links in self.graph.edges(data=True):  # Corrected iteration over edges
+        for source, adjacency in self.graph._adj.items():
 
-            self.links['object'] = Transmission(source, target, **link)
+            for target, link in adjacency.items():
 
-    def build_model(self):
+                link['object'] = Transmission(source, target, **link)
+
+            
+    def build_model(self, model):
 
         self.build_sets()
 
-        self.build_paramaters()
+        self.build_parameters(self.model)
 
-        self.build_variables()
+        self.build_variables(self.model)
 
-        self.build_objective()
+        self.build_objective(self.model)
 
-        self.build_constraints()
+        self.build_constraints(self.model)
 
     def build_sets(self):
 
-        self.global_sets()
-
-        self.local_sets()
+        self.global_sets(self.model)
 
     def global_sets(self, model): 
 
@@ -61,43 +64,38 @@ class Opt_Model:
         self.model.g = pyomo.Set(initialize=self.generator_type)
         self.model.gf = pyomo.Set(initialize=self.gen_fuel_type)
         self.model.src = pyomo.Set(initialize=self.solar_ids)
-        self.model.wrc = pyomo.Set(initialize=self.wind_id)
+        self.model.wrc = pyomo.Set(initialize=self.wind_ids)
         self.model.cc = pyomo.Set(initialize=self.cost_class_ids)
 
-    def local_sets(self, model): 
-
-        for obj in region_data: 
-
-            obj.sets()
     
-    def build_paramaters(self, model): 
+    def build_parameters(self, model): 
 
-        for obj in region_data: 
+        for region_id, region_data in self.graph.nodes(data=True):
 
-            obj.parameters()
+            region_data['object'].parameters(self.model)
 
-        for edge in links: 
+	    # for source, target, links in self.graph.edges(data=True):
 
-            edge.parameters()
-    
+		# 	    links['object'].parameters(self.model)
+        
     def build_variables(self,model):
 
-	    for node in self.graph.node.values():
+        for node in self.graph.nodes.values():
 
-		    self.model = node['object'].variables(self.model)
+            node['object'].variables(self.model)
 
-	    for source, adjacency in self.graph.adj.items():
+        for source, adjacency in self.graph.adj.items():
 
-		    for target, link in adjacency.items():
+            for target, link in adjacency.items():
 
-			    self.model = link['object'].variables(self.model)
+                link['object'].variables(self.model)
 
 
-    def build_objective(self):
+    def build_objective(self, model):
         
         objective_function = 0 
         
-        for node in self.graph.node.values(): 
+        for node in self.graph.nodes.values(): 
 
             objective_function += node['object'].objective(self.model)
 
@@ -111,11 +109,11 @@ class Opt_Model:
 
     def build_constraints(self, model):
 
-        self.local_constraints()
+        self.local_constraints(self.model)
 
-        self.transmissions_constraints() 
+        self.transmissions_constraints(self.model) 
 
-        self.region_balancing_constraint()
+        self.region_balancing_constraint(self.model)
 
     def local_constraints(self, model): 
 

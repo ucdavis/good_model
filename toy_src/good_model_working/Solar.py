@@ -10,6 +10,8 @@ class Solar:
         self.max_capacity = {}
         self.cost = {}
 
+        print(self.cost)
+
         for data in solar_data:
             resource_id = data.get('id', 0)
             self.resource_id.append(resource_id)
