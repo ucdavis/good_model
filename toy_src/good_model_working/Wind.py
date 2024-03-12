@@ -1,33 +1,38 @@
 import pyomo.environ as pyomo
 
 class Wind:
-    def __init__(self, region_id, *kwargs):
+    def __init__(self, region_id, *wind_data):
         self.region_id = region_id
-        #wind_install_capacity
+        self.resource_id = []
+        self.cost_class = []
+        self.installed_capacity = {}
+        self.gen_profile = {}
+        self.max_capacity = {}
+        self.cost = {}
 
         ## TO DO: 
         ## need to fix data handling from RegionNode to modules
-        self.data = kwargs
         
-        for i in self.data: 
-            
+        for data in wind_data: 
+
+            resource_id = data.get('id', 0)
+            self.resource_id.append(resource_id)
+
+
             max_capacity_dict = i.get('max_capacity', {})
-            
 
             if max_capacity_dict:
                 self.max_capacity = next(iter(max_capacity_dict.values()))
             else:
                 self.max_capacity = 0
 
-                print(self.max_capacity)
-
-        self.installed_capacity = kwargs.get('installed_capacity', 0)
-        self.gen_profile = kwargs.get('generation_profile', {})
+            self.installed_capacity = i.get('installed_capacity', 0)
+            
+            self.gen_profile = i.get('generation_profile', {})
         
-        self.cost = kwargs.get('cost', {})
-        self.trans_cost = kwargs.get('transmission_cost', {})
+            self.cost = i.get('cost', {})
+            self.trans_cost = i.get('transmission_cost', {})
 
-        print(self.cost)
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -38,16 +43,16 @@ class Wind:
         windCap = pyomo.Param(initialize=self.installed_capacity)
         setattr(model, self.region_id + '_windCap', windCap)
 
-        windgenprofile = pyomo.Param(region_id, model.wrc, model.t, initialize=self.gen_profile)
+        windgenprofile = pyomo.Param(model.wrc, model.t, initialize=self.gen_profile)
         setattr(model, self.region_id + '_windgenprofile', windgenprofile)
 
-        windmax = pyomo.Param(region_id, model.wrc, model.cc, initialize=self.max_capacity)
+        windmax = pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity)
         setattr(model, self.region_id + '_windMax', windmax)
 
-        windCost = pyomo.Param(region_id, model.wrc, model.cc, initialize=self.cost)
+        windCost = pyomo.Param(model.wrc, model.cc, initialize=self.cost)
         setattr(model, self.region_id + '_windCost', windCost)
 
-        windTransCost = pyomo.Param(region_id, model.wrc, model.cc, initialize=self.trans_cost)
+        windTransCost = pyomo.Param(model.wrc, model.cc, initialize=self.trans_cost)
         setattr(model, self.region_id + '_windTransCost', windTransCost)
 
         return model

@@ -20,15 +20,15 @@ class Opt_Model:
         if self.graph and self.time_periods and self.sets:
 
             self.model = pyomo.ConcreteModel()
-            self.build(self.model)
+            self.build()
 
-    def build(self, model):
+    def build(self):
         self.timer = TicTocTimer()
 
         self.build_grid()
         self.timer.toc('Grid built')
 
-        self.build_model(self.model)
+        self.build_model()
 
     def build_grid(self):
 
@@ -40,31 +40,31 @@ class Opt_Model:
 
             for target, link in adjacency.items():
 
-                link['object'] = Transmission(source, target, **link)
+                link['object'] = Transmission(self.model, source, target, **link)
 
             
-    def build_model(self, model):
+    def build_model(self):
 
         self.build_sets()
         self.timer.toc('Sets built')
 
-        self.build_parameters(self.model)
+        self.build_parameters()
         self.timer.toc('Parameters built')
 
-        self.build_variables(self.model)
+        self.build_variables()
         self.timer.toc('Variables built')
 
-        self.build_objective(self.model)
+        self.build_objective()
         self.timer.toc('Objective Function built')
 
-        self.build_constraints(self.model)
+        self.build_constraints()
         self.timer.toc('Constraints built')
 
     def build_sets(self):
 
-        self.global_sets(self.model)
+        self.global_sets()
 
-    def global_sets(self, model): 
+    def global_sets(self): 
 
         self.model.t = pyomo.Set(initialize=self.time_periods)
         self.model.r = pyomo.Set(initialize=self.region_list)
@@ -76,18 +76,19 @@ class Opt_Model:
         self.model.wrc = pyomo.Set(initialize=self.wind_ids)
         self.model.cc = pyomo.Set(initialize=self.cost_class_ids)
 
-
-    def build_parameters(self, model): 
+    def build_parameters(self): 
 
         for region_id, region_data in self.graph._node.items():
 
-            region_data['object'].parameters(self.model)
+            self.model = region_data['object'].parameters(self.model)
 
-	    # for source, target, links in self.graph.edges(data=True):
+        for source, adjacency in self.graph._adj.items():
 
-		# 	    links['object'].parameters(self.model)
+            for target, link in adjacency.items():
+
+	            self.model = link['object'].parameters()
         
-    def build_variables(self,model):
+    def build_variables(self):
 
         for node in self.graph._node.values():
 
@@ -97,10 +98,10 @@ class Opt_Model:
 
             for target, link in adjacency.items():
 
-                link['object'].variables(self.model)
+                link['object'].variables()
 
 
-    def build_objective(self, model):
+    def build_objective(self):
         
         region_terms = 0 
         trans_terms = 0
@@ -113,11 +114,11 @@ class Opt_Model:
 
             for target, link in adjacency.items(): 
 
-                trans_terms += link['object'].objective(self.model)
+                trans_terms += link['object'].objective()
 
         self.model.obj_func = pyomo.Objective(expr=region_terms + trans_terms)
 
-    def build_constraints(self, model):
+    def build_constraints(self):
 
         self.local_constraints(self.model)
 
@@ -125,9 +126,9 @@ class Opt_Model:
 
         self.region_balancing_constraint(self.model)
 
-    def local_constraints(self, model): 
+    def local_constraints(self): 
 
-        for node in self.graph.node.values(): 
+        for node in self.graph.nodes.values(): 
             
             node['object'].constraints(self.model)
 
@@ -139,7 +140,7 @@ class Opt_Model:
 
                 link['object'].constraints(self.model)
 
-    def region_balancing_constraint(self, model): 
+    def region_balancing_constraint(self): 
 
         for source, adjacency in self.graph.adj.items(): 
 
@@ -151,8 +152,6 @@ class Opt_Model:
 
                 object_data = source_node.get('object')
 
-
-
         for region_id, region_data in self.graph.node.items(): 
             region = region_data.get('object', [])
 
@@ -162,6 +161,13 @@ class Opt_Model:
         for gf in self.model.gf:
             for t in self.model.t:
                 generation_term += self.model.x_generation[gf, t]
+
+        for region in model.r: 
+            for s in self.model.src:
+                for c in self.model.cc:
+                    for t in self.model.t: 
+                        getattr(model, region + '_solarCap')[s][c]
+
         
         solar_term = pyomo.quicksum((Solar.model.c_solarCap + self.region_objects.Solar.model.x_solarNew[s,c]) * self.region_objects.Solar.model.c_solarCF[s,t]
             for s in self.model.src 

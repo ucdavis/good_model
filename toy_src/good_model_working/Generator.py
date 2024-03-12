@@ -43,6 +43,7 @@ class Generator:
             for g in model.g
             for gf in model.gf 
             for t in model.t)
+            
         return gen_cost_term
 
     def constraints(self, model):
