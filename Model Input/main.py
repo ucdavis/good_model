@@ -98,7 +98,7 @@ merged_dict = merge_dictionaries(all_dicts)
 # Create a dictionary to hold all objects
 all_objects = {
     'nodes': merged_dict,
-    # 'links': transmision_oo,
+    'links': transmision_oo,
 }
 
 
