@@ -47,11 +47,14 @@ class Solar:
         self.solarCost = pyomo.Param(self.region_id, model.src, model.cc, initialize=self.cost)
         setattr(model, self.region_id + '_solarCost', self.solarCost)
 
+        return model
+
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_solarNew[s,c]
         self.solarNew = pyomo.Var(self.region_id, model.src, model.cc, within=pyomo.NonNegativeReals)
         setattr(model, self.region_id + '_solarNew', self.solarNew)
 
+        return model
 
     def objective(self, model):
         # Simplify the construction of the objective function
@@ -71,5 +74,7 @@ class Solar:
                 for c in model.cc: 
                     constraint_expr = getattr(model, self.region_id + '_solarMax')[r][s][c] - getattr(model, self.region_id + '_solarNew')[r, s, c] >= 0
                     model.solar_install_limits_rule.add(constraint_expr)
+        
+        return model
 
     
