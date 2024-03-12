@@ -475,8 +475,29 @@ def gen_object(df):
         cost = row.iloc[5]
         capacity = row.iloc[4]
         group_id = row.iloc[12]
-        # Append data to load_example list
-        gen_example.append({'id': region_name, 'dependents': [{'data_type': "generators", 'parameters': [{'plant_type': plant_type, 'parameters': [{'fuel_type': fuel_type, 'values':{"cost": cost, "capacity": capacity, "group_id": group_id}}]}]}]})
+
+        # Check if the region already exists in gen_example
+        region_exists = False
+        for region_data in gen_example:
+            if region_data['id'] == region_name:
+                # Append the new data to the existing region
+                region_data['dependents'][0]['parameters'].append({
+                    'plant_type': plant_type,
+                    'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
+                })
+                region_exists = True
+                break
+
+        # If the region doesn't exist, create a new entry
+        if not region_exists:
+            gen_example.append({
+                'id': region_name,
+                'dependents': [{'data_type': "generators", 'parameters': [{
+                    'plant_type': plant_type,
+                    'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
+                }]}]
+            })
+
     return gen_example
 
 
