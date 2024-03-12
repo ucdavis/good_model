@@ -49,6 +49,7 @@ generator_oo = gen_object(Plants_group)
 storage_oo = storage_object(Plants_group)
 solar_oo = solar_object(Solar_generation_profile_wide, Solar_capital_cost_photov, Solar_regional_capacity, Solar_capital_cost_photov_copy, Plants_group, Region)
 wind_oo = wind_object(Wind_generation_profile_wide, Wind_capital_cost, Wind_onshore_capacity, Wind_capital_cost_copy,  Plants_group, Region)
+
 # %% sets
 sets = {
     'region': list(Transmission_Capacity.index.unique()),
@@ -56,27 +57,48 @@ sets = {
     'fuel_type': list(Plants_ungroup[~Plants_ungroup["PlantType"].isin(["Solar PV", "Onshore Wind", "Energy Storage"])]["FuelType"].unique()),
     'solar_rc': list(Solar_regional_capacity["New Resource Class"].unique()),
     'wind_rc': list(Wind_onshore_capacity["New Resource Class"].unique()),
-    'cost_class': list([1,2,3,4,5,6])
+    'cost_class': list([1, 2, 3, 4, 5, 6])
 }
 sorted_sets = {key: sorted(value) for key, value in sets.items()}
 # %% Saving output as JSON file
 # Define the file path for saving the JSON file
 input_file = 'all_input_objects.json'
+# Define an empty dictionary to hold dictionaries grouped by 'id'
+# Define an empty dictionary to hold merged dictionaries grouped by "id"
+merged_dict = {}
 
-# Define an empty list to hold all dictionaries
-all_dicts = []
+# Define a list of all dictionaries
+def merge_dictionaries(list_of_dicts):
+    merged_dict = {}
 
-# Append each dictionary to the list
-all_dicts.extend(load_oo)
-all_dicts.extend(generator_oo)
-all_dicts.extend(storage_oo)
-all_dicts.extend(solar_oo)
-all_dicts.extend(wind_oo)
+    # Iterate over the list of dictionaries
+    for single_dict in list_of_dicts:
+        # Get the id and the list of dependents
+        id = single_dict['id']
+        dependents = single_dict['dependents']
+
+        # If the id is already in the merged_dict, extend the list of dependents
+        if id in merged_dict:
+            merged_dict[id]['dependents'].extend(dependents)
+        else:
+            # Otherwise, add the new id and its dependents to the merged_dict
+            merged_dict[id] = {'dependents': dependents}
+
+    return merged_dict
+
+# Assuming load_oo, generator_oo, storage_oo, solar_oo, and wind_oo are defined with the same structure...
+
+# Combine all the dictionaries into one list
+all_dicts = load_oo + generator_oo + storage_oo + solar_oo + wind_oo
+# all_dicts = load_oo + generator_oo + storage_oo
+
+# Merge all dictionaries in the list
+merged_dict = merge_dictionaries(all_dicts)
 
 # Create a dictionary to hold all objects
 all_objects = {
-    'nodes': all_dicts,
-    'links': transmision_oo,
+    'nodes': merged_dict,
+    # 'links': transmision_oo,
 }
 
 
