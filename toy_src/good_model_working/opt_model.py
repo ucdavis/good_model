@@ -1,7 +1,8 @@
 import pyomo.environ as pyomo
-from constants import time_periods
-from RegionNode import RegionNode
-from Transmission import Transmission
+from .constants import time_periods
+from .RegionNode import RegionNode
+from .Transmission import Transmission
+from pyomo.common.timing import TicTocTimer
 
 class Opt_Model:
     def __init__(self, graph, sets):
@@ -22,15 +23,19 @@ class Opt_Model:
             self.build(self.model)
 
     def build(self, model):
+        self.timer = TicTocTimer()
+
         self.build_grid()
+        self.timer.toc('Grid built')
+
         self.build_model(self.model)
 
     def build_grid(self):
 
         for region_id, region_data in self.graph._node.items():  
-            
-            region_data['object'] = RegionNode(region_id, **region_data)
 
+            region_data['object'] = RegionNode(region_id, **region_data)
+    
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
@@ -41,14 +46,19 @@ class Opt_Model:
     def build_model(self, model):
 
         self.build_sets()
+        self.timer.toc('Sets built')
 
         self.build_parameters(self.model)
+        self.timer.toc('Parameters built')
 
         self.build_variables(self.model)
+        self.timer.toc('Variables built')
 
         self.build_objective(self.model)
+        self.timer.toc('Objective Function built')
 
         self.build_constraints(self.model)
+        self.timer.toc('Constraints built')
 
     def build_sets(self):
 
@@ -66,10 +76,10 @@ class Opt_Model:
         self.model.wrc = pyomo.Set(initialize=self.wind_ids)
         self.model.cc = pyomo.Set(initialize=self.cost_class_ids)
 
-    
+
     def build_parameters(self, model): 
 
-        for region_id, region_data in self.graph.nodes(data=True):
+        for region_id, region_data in self.graph._node.items():
 
             region_data['object'].parameters(self.model)
 
@@ -79,11 +89,11 @@ class Opt_Model:
         
     def build_variables(self,model):
 
-        for node in self.graph.nodes.values():
+        for node in self.graph._node.values():
 
             node['object'].variables(self.model)
 
-        for source, adjacency in self.graph.adj.items():
+        for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
 
@@ -92,19 +102,20 @@ class Opt_Model:
 
     def build_objective(self, model):
         
-        objective_function = 0 
+        region_terms = 0 
+        trans_terms = 0
         
         for node in self.graph.nodes.values(): 
 
-            objective_function += node['object'].objective(self.model)
+            region_terms += node['object'].objective(self.model)
 
         for source, adjacency in self.graph.adj.items():
 
             for target, link in adjacency.items(): 
 
-                objective_function += link['object'].objective(self.model)
+                trans_terms += link['object'].objective(self.model)
 
-        self.model.obj_func = pyomo.Objective(expr=objective_function)
+        self.model.obj_func = pyomo.Objective(expr=region_terms + trans_terms)
 
     def build_constraints(self, model):
 

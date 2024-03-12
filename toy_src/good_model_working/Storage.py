@@ -1,6 +1,6 @@
 import pyomo.environ as pyomo
-from constants import storage_efficiency
-from constants import storage_flow_limit
+from .constants import storage_efficiency
+from .constants import storage_flow_limit
 
 
 class Storage:
@@ -12,16 +12,33 @@ class Storage:
         self.storage_flow_limit = storage_flow_limit
 
     def parameters(self, model):
-        model.c_storCap = pyomo.Param(initialize=self.storage_capacity)
-        model.c_storEff = pyomo.Param(initialize=self.efficiency)
-        model.c_storCost = pyomo.Param(initialize=self.cost)
-        model.c_storFlowCap = pyomo.Param(initialize=self.storage_flow_limit)
+
+        self.storCap = pyomo.Param(self.region_id, initialize=self.storage_capacity)
+        setattr(model, self.region_id + '_storCap', self.storCap)
+
+        self.storEff = pyomo.Param(initialize=self.efficiency)
+        setattr(model, self.region_id + '_storEff', self.storEff)
+
+        self.storCost = pyomo.Param(self.region_id, initialize=self.cost)
+        setattr(model, self.region_id + '_storCost', self.storCost)
+
+        self.storFlowCap = pyomo.Param(initialize=self.storage_flow_limit)
+        setattr(model, self.region_id + '_storFlowCap', self.storFlowCap)
+
+        return model
 
     def variables(self, model):
-        # Correctly define variables without unnecessary setattr
-        model.x_storSOC = pyomo.Var(region_id, opt_model.model.t, within=pyomo.NonNegativeReals)
-        model.x_storCharge = pyomo.Var(region_id, opt_model.model.t, within=pyomo.NonNegativeReals)
-        model.x_storDischarge = pyomo.Var(region_id, opt_model.model.t, within=pyomo.NonNegativeReals)
+
+        self.storSOC = pyomo.Var(self.region_id, model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_storSOC', self.storSOC)
+
+        self.storCharge = pyomo.Var(self.region_id, model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_storCharge', self.storCharge)
+
+        self.storDischarge = pyomo.Var(self.region_id, model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_storDischarge', self.storDischarge)
+
+        return model
 
     def objective(self, model): 
         pass 
@@ -30,21 +47,22 @@ class Storage:
         # Max storage constraint
         model.maxStorage_rule = pyomo.ConstraintList()
         
-        for r in region_id: 
-            for t in opt_model.model.t:
-                model.maxStorage_rule.add(model.c_storCap[r] - model.x_storSOC[r][t] >= 0 )
+        for r in model.r: 
+            for t in model.t:
+                model.maxStorage_rule.add(getattr(model, self.region_id + '_storCap')[r] - getattr(model, self.region_id + '_storSOC')[r][t] >= 0)
 
         # Storage state-of-charge constraint
         model.storageSOC_rule = pyomo.ConstraintList()
         
-        for r in region_id:
-            for t in opt_model.model.t:
+        for r in model.r:
+            for t in model.t:
                 if t == min(model.t):  # Assuming model.t is an ordered set
                     model.storageSOC_rule.add(model.x_storSOC[r][t] == 0)
                 else:
                     t_1 = t-1
                     constraint_expr = (
-                        model.x_storSOC[r][t] - model.x_storSOC[r][t_1] - model.x_storIn[r][t_1] * model.c_storEff + model.x_storOut[r][t_1]  
+                        getattr(model, self.region_id + '_storSOC')[r][t] - getattr(model, self.region_id + '_storSOC')[r][t_1] 
+                        - getattr(model, self.region_id + '_storCharge')[r][t_1] * getattr(model, self.region_id + '_storEff') + getattr(model, self.region_id + '_storDischarge')[r][t_1]  
                     ) == 0
 
                     model.storageSOC_rule.add(constraint_expr)
@@ -53,9 +71,10 @@ class Storage:
         model.stor_flowIN_rule = pyomo.ConstraintList()
         
         constraint_expr = (pyomo.quicksum(
-            model.c_storCap[r] * model.c_storFlowCap - model.x_storIn[r][t] 
-            for r in region_id
-            for t in self.model.t) 
+            getattr(model, self.region_id + '_storCap')[r] * getattr(model, self.region_id + '_storFlowCap') 
+            - getattr(model, self.region_id + '_storCharge')[r][t] 
+            for r in model.r
+            for t in model.t) 
         ) >= 0 
         model.stor_flowIN_rule.add(constraint_expr)
 
@@ -63,9 +82,12 @@ class Storage:
         model.stor_flowOUT_rule = pyomo.ConstraintList()
         
         constraint_expr = pyomo.quicksum(
-            model.c_storCap * model.c_storFlowCap - model.x_storOut[r][t]
-            for r in region_id
-            for t in self.model.t
+            getattr(model, self.region_id + '_storCap')[r] * getattr(model, self.region_id + '_storFlowCap') 
+            - getattr(model, self.region_id + '_storDischarge')[r][t]
+            for r in model.r
+            for t in model.t
         ) >= 0
                 
         model.stor_flowOUT_rule.add(constraint_expr)
+
+        return model

@@ -35,21 +35,29 @@ class Solar:
         # if the data is: 
         ## nested dictionary, ex: model.c_solarprofile[s][t]
         ## tuple dictionary, ex: model.c_solarprofile[s,t]
-        model.c_solarCap = pyomo.Param(region_id, model.src, initialize=self.installed_capacity)
-        model.c_solarprofile = pyomo.Param(region_id, model.src, model.t, initialize=self.gen_profile)
-        model.c_solarMax = pyomo.Param(region_id, model.src, model.cc, initialize=self.max_capacity)
-        model.c_solarCost = pyomo.Param(region_id, model.src, model.cc, initialize=self.cost)
+        self.solarCap = pyomo.Param(self.region_id, model.src, initialize=self.installed_capacity)
+        setattr(model, self.region_id + '_solarCap', self.solarCap)
+
+        self.solarprofile = pyomo.Param(self.region_id, model.src, model.t, initialize=self.gen_profile)
+        setattr(model, self.region_id + '_solarprofile', self.solarprofile)
+
+        self.solarMax = pyomo.Param(self.region_id, model.src, model.cc, initialize=self.max_capacity)
+        setattr(model, self.region_id + '_solarMax', self.solarMax)
+
+        self.solarCost = pyomo.Param(self.region_id, model.src, model.cc, initialize=self.cost)
+        setattr(model, self.region_id + '_solarCost', self.solarCost)
 
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_solarNew[s,c]
-        model.x_solarNew = pyomo.Var(region_id, model.src, model.cc, within=pyomo.NonNegativeReals)
+        self.solarNew = pyomo.Var(self.region_id, model.src, model.cc, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_solarNew', self.solarNew)
 
 
     def objective(self, model):
         # Simplify the construction of the objective function
         solar_cost_term = pyomo.quicksum(
-            model.c_solarCost[r][s][c] * model.x_solarNew[r, s,c] 
-            for r in region_id
+            getattr(model, self.region_id + '_solarCost')[r][s][c] * getattr(model, self.region_id + '_solarNew')[r, s, c] 
+            for r in model.r
             for s in model.src 
             for c in model.cc) 
             
@@ -58,10 +66,10 @@ class Solar:
     def constraints(self, model):
         model.solar_install_limits_rule = pyomo.ConstraintList()
 
-        for r in region_id:
+        for r in model.r:
             for s in model.src: 
                 for c in model.cc: 
-                    constraint_expr = model.c_solarMax[r][s][c] - model.x_solarnew[r, s, c] >= 0
+                    constraint_expr = getattr(model, self.region_id + '_solarMax')[r][s][c] - getattr(model, self.region_id + '_solarNew')[r, s, c] >= 0
                     model.solar_install_limits_rule.add(constraint_expr)
 
-        # Additional constraints for installed capacity if needed
+    

@@ -21,19 +21,37 @@ class Generator:
                 self.gen_capacity[gen_id][fuel_type] = data.get('capacity')
 
     def parameters(self, model):
-        model.c_gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost)
-        model.c_genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity)
 
+        self.gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost)
+        setattr(model, self.region_id + '_gencost', self.gencost)
+
+        self.genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity)
+        setattr(model, self.region_id + '_genMax', self.genMax)
+
+        return model
 
     def variables(self, model):
-        model.x_generation = pyomo.Var(model.gf, model.t, within=pyomo.NonNegativeReals)
+        
+        self.generation = pyomo.Var(model.g, model.gf, model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_generation', self.generation)
+
+        return model
 
     def objective(self, model):
-        gen_cost_indices = [gf for gf in model.gf if gf in model.c_gencost]
-        gen_cost_term = pyomo.quicksum(model.x_generation[gf, t] * model.c_gencost[gf] for gf in gen_cost_indices for t in model.t)
+        gen_cost_term = pyomo.quicksum(
+            getattr(model, self.region_id + '_generation')[g, gf, t] * getattr(model, self.region_id + '_gencost')[g][gf]
+            for g in model.g
+            for gf in model.gf 
+            for t in model.t)
         return gen_cost_term
 
     def constraints(self, model):
         model.gen_limits_rule = pyomo.ConstraintList()
-        constraint_expr = pyomo.quicksum(model.c_genMax[gf] - model.x_generation[gf, t] for gf in model.gf for t in model.t) >= 0
+        constraint_expr = pyomo.quicksum(
+            getattr(model, self.region_id + '_genMax')[g,gf] - getattr(model, self.region_id + '_generation')[g, gf, t]
+            for g in model.g
+            for gf in model.gf
+            for t in model.t) >= 0
         model.gen_limits_rule.add(constraint_expr)
+
+        return model

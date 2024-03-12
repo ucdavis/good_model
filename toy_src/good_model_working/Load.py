@@ -6,11 +6,11 @@ class Load:
         self.region_id = region_id
         self.load = kwargs.get('load', {})
 
-    def sets(self, model): 
-        pass 
 
     def parameters(self, model):
-        model.c_demandLoad = pyomo.Param(model.t, initialize=self.load)
+
+        self.demandLoad = pyomo.Param(self.region_id, model.t, initialize=self.load)
+        setattr(model, self.region_id + '_load', self.demandLoad)
 
     def variables(self, model): 
         pass 
