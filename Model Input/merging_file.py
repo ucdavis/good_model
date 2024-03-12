@@ -450,15 +450,15 @@ def load_object(df):
         region_name = row.iloc[0]  # First column contains the region name
         load_data = row.iloc[1:]  # Load data starts from the second column onwards
 
-        dependents = []  # List to store load data for each hour
+        parameters = {}  # Dictionary to store load data for each hour
 
         # Iterate through each hour and load data
         for hour, load in load_data.items():
-            load_hour = {hour: load}
-            dependents.append(load_hour)
+            # Directly add hour:load pair to the parameters dictionary
+            parameters[hour] = load
 
         # Append data to load_example list
-        load_example.append({'id': region_name, 'dependents': [{'data_type': 'load', 'parameters': {'load': dependents}}]})
+        load_example.append({'id': region_name, 'dependents': [{'data_type': 'load', 'parameters': parameters}]})
     return load_example
 
 
