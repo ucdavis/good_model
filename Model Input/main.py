@@ -68,23 +68,28 @@ input_file = 'all_input_objects.json'
 merged_dict = {}
 
 # Define a list of all dictionaries
-def merge_dictionaries(list_of_dicts):
-    merged_dict = {}
+def merge_dictionaries_and_format(list_of_dicts):
+    # Temporary dictionary to hold the merged data
+    temp_merged_dict = {}
+
+    # Final list to hold the formatted output
+    formatted_list = []
 
     # Iterate over the list of dictionaries
     for single_dict in list_of_dicts:
-        # Get the id and the list of dependents
         id = single_dict['id']
         dependents = single_dict['dependents']
 
-        # If the id is already in the merged_dict, extend the list of dependents
-        if id in merged_dict:
-            merged_dict[id]['dependents'].extend(dependents)
+        if id in temp_merged_dict:
+            temp_merged_dict[id]['dependents'].extend(dependents)
         else:
-            # Otherwise, add the new id and its dependents to the merged_dict
-            merged_dict[id] = {'dependents': dependents}
+            temp_merged_dict[id] = {'id': id, 'dependents': dependents}
 
-    return merged_dict
+    # Convert the merged dictionary into the desired list format
+    for id, info in temp_merged_dict.items():
+        formatted_list.append({'id': id, 'dependents': info['dependents']})
+
+    return formatted_list
 
 # Assuming load_oo, generator_oo, storage_oo, solar_oo, and wind_oo are defined with the same structure...
 
@@ -93,7 +98,7 @@ all_dicts = load_oo + generator_oo + storage_oo + solar_oo + wind_oo
 # all_dicts = load_oo + generator_oo + storage_oo
 
 # Merge all dictionaries in the list
-merged_dict = merge_dictionaries(all_dicts)
+merged_dict = merge_dictionaries_and_format(all_dicts)
 
 # Create a dictionary to hold all objects
 all_objects = {
