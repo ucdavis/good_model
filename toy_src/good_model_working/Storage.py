@@ -1,6 +1,6 @@
 import pyomo.environ as pyomo
-from .utils import storage_efficiency
-from .utils import storage_flow_limit
+from constants import storage_efficiency
+from constants import storage_flow_limit
 
 
 class Storage:

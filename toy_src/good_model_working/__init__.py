@@ -9,5 +9,5 @@ from . import Load
 from . import RegionNode
 from . import opt_model
 from . import constants
-from . import class_mappings
+from . import class_mapping
 from . import reload

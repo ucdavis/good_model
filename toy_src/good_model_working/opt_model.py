@@ -1,7 +1,7 @@
 import pyomo.environ as pyomo
-from .utils import time_periods
-from .RegionNode import RegionNode
-from .Transmission import Transmission
+from constants import time_periods
+from RegionNode import RegionNode
+from Transmission import Transmission
 
 class Opt_Model:
     def __init__(self, graph, sets):

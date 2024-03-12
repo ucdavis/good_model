@@ -1,6 +1,4 @@
-from .utils import get_class_dict_for_region
-
-class_dict_for_region = get_class_dict_for_region()
+from class_mapping import class_dict_for_region
 
 class RegionNode():
 

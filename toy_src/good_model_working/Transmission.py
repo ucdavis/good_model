@@ -1,5 +1,5 @@
 import pyomo.environ as pyomo
-from .utils import transmission_efficiency
+from constants import transmission_efficiency
 
 
 class Transmission:
