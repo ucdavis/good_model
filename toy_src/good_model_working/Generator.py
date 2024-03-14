@@ -22,10 +22,10 @@ class Generator:
 
     def parameters(self, model):
 
-        self.gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost)
+        self.gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost, within=Reals)
         setattr(model, self.region_id + '_gencost', self.gencost)
 
-        self.genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity)
+        self.genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity, within=Reals)
         setattr(model, self.region_id + '_genMax', self.genMax)
 
 
@@ -37,6 +37,9 @@ class Generator:
         return model
 
     def objective(self, model):
+
+        gen_cost_term = 0
+
         gen_cost_term = pyomo.quicksum(
             getattr(model, self.region_id + '_generation')[g, gf, t] * getattr(model, self.region_id + '_gencost')[g][gf]
             for g in model.g
@@ -46,6 +49,7 @@ class Generator:
         return gen_cost_term
 
     def constraints(self, model):
+
         model.gen_limits_rule = pyomo.ConstraintList()
         constraint_expr = pyomo.quicksum(
             getattr(model, self.region_id + '_genMax')[g,gf] - getattr(model, self.region_id + '_generation')[g, gf, t]

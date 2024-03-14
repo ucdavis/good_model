@@ -4,34 +4,36 @@ class Wind:
     def __init__(self, region_id, *wind_data):
         self.region_id = region_id
         self.resource_id = []
-        self.installed_capacity = {}
+        self.installed_capacity = []
         self.gen_profile = {}
         self.max_capacity = {}
         self.cost = {}
         self.trans_cost = {}
 
-        ## TO DO: 
-        ## need to fix data handling from RegionNode to modules
-        
-        for data in wind_data: 
+        for data in wind_data:
+
+            if 'generation_profile' not in data and 'max_capacity' not in data: 
+                continue
 
             resource_id = data.get('Resource Class', 0)
             self.resource_id.append(resource_id)
 
+            # Assuming 'values' contains cost-related information
+            values = data.get('values', {})
+            self.cost_class += list(values.keys())
 
-            max_capacity_dict = data.get('max_capacity', {})
+            # Installed capacity and capacity factor for each resource
+            self.installed_capacity = data.get('capacity', 0)
+            self.gen_profile[resource_id] = data.get('generation_profile', {})
 
-            if max_capacity_dict:
-                self.max_capacity = next(iter(max_capacity_dict.values()))
-            else:
-                self.max_capacity = 0
+            # Max capacity and cost for each cost class
+            for cost_class, info in values.items():
+                self.max_capacity[resource_id][cost_class] = info.get('max_capacity', 0)
+                self.cost[resource_id][cost_class] = info.get('cost', 0)
+                self.trans_cost[resource_id][cost_class] = info.get('transmission_cost', 0)
 
-            self.installed_capacity = data.get('installed_capacity', 0)
-            
-            self.gen_profile = data.get('generation_profile', {})
-        
-            self.cost = data.get('cost', {})
-            self.trans_cost = data.get('transmission_cost', {})
+        self.param_list = [self.installed_capacity, self.gen_profile,
+            self.max_capacity, self.cost, self.trans_cost]
 
 
     def parameters(self, model):
@@ -39,47 +41,62 @@ class Wind:
         # if the data is: 
         ## nested dictionary, ex: model.c_windprofile[w][t]
         ## tuple dictionary, ex: model.c_windprofile[w,t]
+
+        if all(self.param_list) and isinstance(self.param_list, (dict, list)):
         
-        windCap = pyomo.Param(initialize=self.installed_capacity)
-        setattr(model, self.region_id + '_windCap', windCap)
+            windCap = pyomo.Param(initialize=self.installed_capacity, within=pyomo.Any)
+            setattr(model, self.region_id + '_windCap', windCap)
 
-        windgenprofile = pyomo.Param(model.wrc, model.t, initialize=self.gen_profile)
-        setattr(model, self.region_id + '_windgenprofile', windgenprofile)
+            windgenprofile = pyomo.Param(model.wrc, model.t, self.gen_profile, within=pyomo.Any)
+            setattr(model, self.region_id + '_windgenprofile', windgenprofile)
 
-        windmax = pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity)
-        setattr(model, self.region_id + '_windMax', windmax)
+            windmax = pyomo.Param(model.wrc, model.cc, self.max_capacity, within=pyomo.Any)
+            setattr(model, self.region_id + '_windMax', windmax)
 
-        windCost = pyomo.Param(model.wrc, model.cc, initialize=self.cost)
-        setattr(model, self.region_id + '_windCost', windCost)
+            windCost = pyomo.Param(model.wrc, model.cc, initialize=self.cost, within=pyomo.Any)
+            setattr(model, self.region_id + '_windCost', windCost)
 
-        windTransCost = pyomo.Param(model.wrc, model.cc, initialize=self.trans_cost)
-        setattr(model, self.region_id + '_windTransCost', windTransCost)
+            windTransCost = pyomo.Param(model.wrc, model.cc, initialize=self.trans_cost, within=pyomo.Any)
+            setattr(model, self.region_id + '_windTransCost', windTransCost)
 
+            return model
 
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_windNew[w,c]
 
-        windNew = pyomo.Var(region_id, model.wrc, model.cc, within=pyomo.NonNegativeReals)
-        setattr(model, self.region_id + '_windNew', windNew)
+        if hasattr(model, self.region_id + '_windCost'):
+
+            windNew = pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals)
+            setattr(model, self.region_id + '_windNew', windNew)
 
         return model
 
     def objective(self, model):
         # Simplified objective function to correctly sum wind generation and transmission costs
-        wind_cost_term = pyomo.quicksum(
-            (model.x_windCost[r][w][c] + model.c_windTransCost[r][w][c]) * model.x_windNew[r,w,c]
-            for r in region_id
-            for w in model.wrc
-            for c in model.cc
-            ) 
+        
+        wind_cost_term = 0 
+
+        if hasattr(model, self.region_id + '_windNew'):
+
+            wind_cost_term = pyomo.quicksum(
+                (getattr(model, self.region_id + '_windCost')[w][c] + getattr(model, self.region_id + '_windTransCost')[w][c]) * getattr(model, self.region_id + '_windNew')[w,c]
+                for w in model.wrc
+                for c in model.cc
+                ) 
+        
+        return wind_cost_term
 
     def constraints(self, model):
         # Corrected and simplified constraints definition
+        
         model.wind_install_limits_rule = pyomo.ConstraintList()
 
         for w in model.wrc:
             for c in model.cc:
-                constraint_expr = (getattr(model, self.region_id + '_windMax')[r][w][c] - getattr(model, self.region_id + '_windNew')[r,w,c]) >= 0
-                model.wind_install_limits_rule.add(constraint_expr)
+                if hasattr(model, self.region_id + '_windNew'):
+                    constraint_expr = (getattr(model, self.region_id + '_windMax')[w][c] - getattr(model, self.region_id + '_windNew')[w,c]) >= 0
+                    model.wind_install_limits_rule.add(constraint_expr)
+                else: 
+                    pass 
 
         return model
