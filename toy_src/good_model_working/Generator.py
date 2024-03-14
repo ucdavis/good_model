@@ -28,7 +28,6 @@ class Generator:
         self.genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity)
         setattr(model, self.region_id + '_genMax', self.genMax)
 
-        return model
 
     def variables(self, model):
         

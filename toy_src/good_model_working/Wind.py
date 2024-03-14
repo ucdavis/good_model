@@ -4,34 +4,34 @@ class Wind:
     def __init__(self, region_id, *wind_data):
         self.region_id = region_id
         self.resource_id = []
-        self.cost_class = []
         self.installed_capacity = {}
         self.gen_profile = {}
         self.max_capacity = {}
         self.cost = {}
+        self.trans_cost = {}
 
         ## TO DO: 
         ## need to fix data handling from RegionNode to modules
         
         for data in wind_data: 
 
-            resource_id = data.get('id', 0)
+            resource_id = data.get('Resource Class', 0)
             self.resource_id.append(resource_id)
 
 
-            max_capacity_dict = i.get('max_capacity', {})
+            max_capacity_dict = data.get('max_capacity', {})
 
             if max_capacity_dict:
                 self.max_capacity = next(iter(max_capacity_dict.values()))
             else:
                 self.max_capacity = 0
 
-            self.installed_capacity = i.get('installed_capacity', 0)
+            self.installed_capacity = data.get('installed_capacity', 0)
             
-            self.gen_profile = i.get('generation_profile', {})
+            self.gen_profile = data.get('generation_profile', {})
         
-            self.cost = i.get('cost', {})
-            self.trans_cost = i.get('transmission_cost', {})
+            self.cost = data.get('cost', {})
+            self.trans_cost = data.get('transmission_cost', {})
 
 
     def parameters(self, model):
@@ -55,7 +55,6 @@ class Wind:
         windTransCost = pyomo.Param(model.wrc, model.cc, initialize=self.trans_cost)
         setattr(model, self.region_id + '_windTransCost', windTransCost)
 
-        return model
 
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_windNew[w,c]

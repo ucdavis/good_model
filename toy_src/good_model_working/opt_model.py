@@ -4,6 +4,7 @@ from .RegionNode import RegionNode
 from .Transmission import Transmission
 from pyomo.common.timing import TicTocTimer
 
+
 class Opt_Model:
     def __init__(self, graph, sets):
         self.graph = graph
@@ -20,6 +21,7 @@ class Opt_Model:
         if self.graph and self.time_periods and self.sets:
 
             self.model = pyomo.ConcreteModel()
+            print("Model initialised", self.model)
             self.build()
 
     def build(self):
@@ -27,7 +29,7 @@ class Opt_Model:
 
         self.build_grid()
         self.timer.toc('Grid built')
-
+        print("build function", self.model)
         self.build_model()
 
     def build_grid(self):
@@ -47,6 +49,7 @@ class Opt_Model:
 
         self.build_sets()
         self.timer.toc('Sets built')
+        print('Building set done', self.model)
 
         self.build_parameters()
         self.timer.toc('Parameters built')
@@ -65,6 +68,7 @@ class Opt_Model:
         self.global_sets()
 
     def global_sets(self): 
+        print("global_sets built")
 
         self.model.t = pyomo.Set(initialize=self.time_periods)
         self.model.r = pyomo.Set(initialize=self.region_list)
@@ -79,14 +83,12 @@ class Opt_Model:
     def build_parameters(self): 
 
         for region_id, region_data in self.graph._node.items():
-
-            self.model = region_data['object'].parameters(self.model)
+            print("self.model in model_opt", self.model)
+            # region_data['object'].parameters(self.model)
 
         for source, adjacency in self.graph._adj.items():
-
             for target, link in adjacency.items():
-
-	            self.model = link['object'].parameters()
+                link['object'].parameters()
         
     def build_variables(self):
 

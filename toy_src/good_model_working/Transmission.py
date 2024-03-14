@@ -34,13 +34,15 @@ class Transmission:
         return self.model
 
     def objective(self):
-        # Simplify the objective function to accumulate transmission costs correctly
-
-        transmission_cost_term = pyomo.quicksum(
+        print("Here in transmission objective")
+        # Correct summation using sum() and appropriate attribute access
+        transmission_cost_term = sum(
             getattr(self.model, self.trans_link + '_trans')[t] * getattr(self.model, self.trans_link + '_cost')
-            for t in self.model.t)
+            for t in self.model.t
+        )
 
         return transmission_cost_term
+
 
     def constraints(self):
         self.model.trans_limits_rule = pyomo.ConstraintList()

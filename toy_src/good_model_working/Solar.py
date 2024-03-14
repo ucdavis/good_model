@@ -47,7 +47,6 @@ class Solar:
         self.solarCost = pyomo.Param(self.region_id, model.src, model.cc, initialize=self.cost)
         setattr(model, self.region_id + '_solarCost', self.solarCost)
 
-        return model
 
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_solarNew[s,c]

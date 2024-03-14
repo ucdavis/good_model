@@ -23,6 +23,7 @@ class RegionNode():
 
 
     def parameters(self, model): 
+        print("Model in regionNode", model)
         
         for key, obj_list in self.region_objects.items(): 
 

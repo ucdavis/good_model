@@ -25,7 +25,6 @@ class Storage:
         self.storFlowCap = pyomo.Param(initialize=self.storage_flow_limit)
         setattr(model, self.region_id + '_storFlowCap', self.storFlowCap)
 
-        return model
 
     def variables(self, model):
 
