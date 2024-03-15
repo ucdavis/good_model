@@ -23,15 +23,12 @@ class RegionNode():
 
 
     def parameters(self, model): 
-        print("Model in regionNode", model)
         
         for key, obj_list in self.region_objects.items(): 
 
             for obj in obj_list:
                 
-                obj.parameters(model)
-            
-        return model
+                obj.parameters(model)        
     
     def variables(self, model): 
         
@@ -40,9 +37,7 @@ class RegionNode():
             for obj in obj_list:
                 
                 obj.variables(model)
-        
-        return model
-
+            
     def objective(self, model): 
         
         objective_function = 0
@@ -62,6 +57,5 @@ class RegionNode():
             for obj in obj_list:
             
                obj.constraints(model)
-    
-        return model
+        
         

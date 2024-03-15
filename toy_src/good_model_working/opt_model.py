@@ -21,7 +21,7 @@ class Opt_Model:
         if self.graph and self.time_periods and self.sets:
 
             self.model = pyomo.ConcreteModel()
-            print("Model initialised", self.model)
+            
             self.build()
 
     def build(self):
@@ -29,7 +29,6 @@ class Opt_Model:
 
         self.build_grid()
         self.timer.toc('Grid built')
-        print("build function", self.model)
         self.build_model()
 
         self.timer.toc('Model solving...')
@@ -53,7 +52,6 @@ class Opt_Model:
 
         self.build_sets()
         self.timer.toc('Sets built')
-        print('Building set done', self.model)
 
         self.build_parameters()
         self.timer.toc('Parameters built')
@@ -72,7 +70,6 @@ class Opt_Model:
         self.global_sets()
 
     def global_sets(self): 
-        print("global_sets built")
 
         self.model.t = pyomo.Set(initialize=self.time_periods)
         self.model.r = pyomo.Set(initialize=self.region_list)
@@ -87,25 +84,26 @@ class Opt_Model:
     def build_parameters(self): 
 
         for region_id, region_data in self.graph._node.items():
-            print("self.model in model_opt", self.model)
-            # region_data['object'].parameters(self.model)
+
+            region_data['object'].parameters(self.model)
 
         for source, adjacency in self.graph._adj.items():
-            for target, link in adjacency.items():
+           
+           for target, link in adjacency.items():
 
-	            self.model = link['object'].parameters(self.model)
+	            link['object'].parameters(self.model)
         
     def build_variables(self):
 
         for node in self.graph._node.values():
 
-            self.model = node['object'].variables(self.model)
+            node['object'].variables(self.model)
 
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
 
-               self.model = link['object'].variables(self.model)
+               link['object'].variables(self.model)
 
     def build_objective(self):
         
@@ -127,7 +125,7 @@ class Opt_Model:
 
         self.local_constraints()
 
-        self.transmissions_constraints() 
+        self.transmission_constraints() 
 
         self.region_balancing_constraint()
 
@@ -135,15 +133,15 @@ class Opt_Model:
 
         for node in self.graph._node.values(): 
             
-            self.model = node['object'].constraints(self.model)
+            node['object'].constraints(self.model)
 
-    def transmission_constraints(self, model): 
+    def transmission_constraints(self): 
 
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():  
 
-                self.model = link['object'].constraints(self.model)
+                link['object'].constraints(self.model)
 
     def region_balancing_constraint(self): 
 
@@ -205,15 +203,15 @@ class Opt_Model:
             + storage_term
             + import_term
             - export_term
-            - transmission_term
             - demand_term
             ) == 0
 				
         self.model.gen_to_demand_rule.add(constraint_expr)
 
-        return model
-
+       
     def solve_model(self, solver_name="cbc"):
+        
         solver = pyomo.SolverFactory(solver_name)
         solution = solver.solve(self.model)
+        
         return solution

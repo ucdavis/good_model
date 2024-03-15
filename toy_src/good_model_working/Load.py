@@ -4,8 +4,11 @@ import pyomo.environ as pyomo
 class Load:
     def __init__(self, region_id, *load_data):
         self.region_id = region_id
+
         for data in load_data: 
+
             self.load = data.get('value', {})
+
         self.load = {int(key): value for key, value in self.load.items()}
 
     def parameters(self, model):

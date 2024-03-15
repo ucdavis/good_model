@@ -46,11 +46,12 @@ class Transmission:
         return transmission_cost_term
 
     def constraints(self, model):
-        self.model.trans_limits_rule = pyomo.ConstraintList()
+        
+        model.trans_limits_rule = pyomo.ConstraintList()
 
         for t in model.t:
             constraint_expr = getattr(model, self.trans_link + '_transCap') - getattr(model, self.trans_link + '_trans')[t] >= 0 
 
-            self.model.trans_limits_rule.add(constraint_expr)
+            model.trans_limits_rule.add(constraint_expr)
 
         return model

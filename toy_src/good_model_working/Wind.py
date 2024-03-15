@@ -9,6 +9,7 @@ class Wind:
         self.max_capacity = {}
         self.cost = {}
         self.trans_cost = {}
+        self.cost_class = []
 
         for data in wind_data:
 
@@ -32,7 +33,7 @@ class Wind:
                 self.cost[resource_id][cost_class] = info.get('cost', 0)
                 self.trans_cost[resource_id][cost_class] = info.get('transmission_cost', 0)
 
-        self.param_list = [self.installed_capacity, self.gen_profile,
+        self.param_list = [self.gen_profile,
             self.max_capacity, self.cost, self.trans_cost]
 
 
@@ -88,15 +89,25 @@ class Wind:
 
     def constraints(self, model):
         # Corrected and simplified constraints definition
-        
-        model.wind_install_limits_rule = pyomo.ConstraintList()
+    
+        wind_constraints = {}  # Dictionary to store constraint lists for each region
 
-        for w in model.wrc:
+        for s in model.wrc:
+            wind_constraints_region = {}  # Dictionary to store constraint lists for each region
+
             for c in model.cc:
+                wind_install_limits_rule = pyomo.ConstraintList()
+                wind_constraints_region[c] = wind_install_limits_rule
+
                 if hasattr(model, self.region_id + '_windNew'):
-                    constraint_expr = (getattr(model, self.region_id + '_windMax')[w][c] - getattr(model, self.region_id + '_windNew')[w,c]) >= 0
-                    model.wind_install_limits_rule.add(constraint_expr)
-                else: 
-                    pass 
+                    constraint_expr = getattr(model, self.region_id + '_windMax')[w][c] - getattr(model, self.region_id + '_windNew')[w, c] >= 0
+                    wind_constraints_region[c] = (constraint_expr)
+                else:
+                    constraint_expr = pyomo.Constraint.Skip()
+                    wind_constraints_region[c] = (constraint_expr)
+
+            wind_constraints[s] = wind_constraints_region
+        
+        setattr(model, self.region_id + '_wolar_install_limits', wind_constraints)
 
         return model

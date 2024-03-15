@@ -5,8 +5,6 @@ import importlib
 from types import ModuleType
 
 def deep_reload(m):
-    # print(m,ModuleType)
-    print('hello inside deep reload')
     name = m.__name__  # get the name that is used in sys.modules
     name_ext = name + '.'  # support finding sub modules or packages
 

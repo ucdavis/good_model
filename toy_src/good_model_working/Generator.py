@@ -51,11 +51,13 @@ class Generator:
     def constraints(self, model):
 
         model.gen_limits_rule = pyomo.ConstraintList()
+        
         constraint_expr = pyomo.quicksum(
             getattr(model, self.region_id + '_genMax')[g,gf] - getattr(model, self.region_id + '_generation')[g, gf, t]
             for g in model.g
             for gf in model.gf
             for t in model.t) >= 0
+
         model.gen_limits_rule.add(constraint_expr)
 
         return model
