@@ -124,10 +124,14 @@ class Opt_Model:
     def build_constraints(self):
 
         self.local_constraints()
+        self.timer.toc("Local Constraints built")
 
         self.transmission_constraints() 
+        self.timer.toc("Transmission constraints built")
 
+        self.timer.toc("Starting balanacing constraint...")
         self.region_balancing_constraint()
+        self.timer.toc("Balancing constraint built")
 
     def local_constraints(self): 
 
@@ -150,52 +154,74 @@ class Opt_Model:
 
         generation_term = 0 
         for r in self.model.r: 
-            for gf in self.model.gf:
-                for t in self.model.t:
-                    generation_term += getattr(model, r + '_generation')[g, gf, t]
+            if hasattr(self.model, r + '_generation'): 
+                for gf in self.model.gf:
+                    for t in self.model.t:
+                            generation_term += getattr(self.model, r + '_generation')[g, gf, t]
+            else: 
+                generation_term += 0
 
         solar_term = 0
         for r in self.model.r: 
-            for s in self.model.src:
-                for c in self.model.cc:
-                    for t in self.model.t: 
-                        solar_term +=( 
-                            (getattr(model, r + '_solarCap')[s][c] + getattr(model, r + '_solarNew')[s,c]) * getattr(model, r + '_solarprofile')[s][t]
-                        )
+            if hasattr(self.model, r + '_solarNew'): 
+                for s in self.model.src:
+                    for c in self.model.cc:
+                        for t in self.model.t: 
+                            
+                                solar_term +=( 
+                                    (getattr(self.model, r + '_solarCap')[s][c] + getattr(self.model, r + '_solarNew')[s,c]) * getattr(self.model, r + '_solarprofile')[s][t]
+                                )
+            else: 
+                solar_term += 0
                         
         wind_term = 0 
         for r in self.model.r: 
-            for w in self.model.wrc: 
-                for c in self.model.cc: 
-                    for t in self.model.t: 
-                        wind_term += ( 
-                            (getattr(model, r + '_windCap') + getattr(model, r + '_windNew')[w, c]) * getattr(model, r + '_windprofile')[w][t]
+            if hasattr(self.model, r + '_windNew'):
+                for w in self.model.wrc: 
+                    for c in self.model.cc: 
+                        for t in self.model.t: 
+                            wind_term += ( 
+                                (getattr(self.model, r + '_windCap') + getattr(self.model, r + '_windNew')[w, c]) * getattr(self.model, r + '_windprofile')[w][t]
                             )
-        
+            else: 
+                wind_term += 0 
+
         storage_term = 0 
         for r in self.model.r: 
-            for t in self.model.r: 
-                storage_term += getattr(model, r + '_storDischarge')[t] - getattr(model, r + '_storCharge')[t]
+            if hasattr(self.model, r + '_storCharge'):
+                for t in self.model.r: 
+                    storage_term += getattr(self.model, r + '_storDischarge')[t] - getattr(self.model, r + '_storCharge')[t]
+            else: 
+                storage_term += 0
         
         
         export_term = 0 
         for o in self.model.o: 
             for r in self.model.r: 
                 export_link = f'{o}_{r}'
-                for t in self.model.t:
-                    export_term += getattr(model, export_link + '_trans')[t] *  getattr(model, export_link + '_efficiency')
+                if hasattr(self.model, export_link + '_trans'): 
+                    for t in self.model.t:
+                        export_term += getattr(self.model, export_link + '_trans')[t] *  getattr(self.model, export_link + '_efficiency')
+                else: 
+                    export_term += 0 
 
         import_term = 0 
         for r in self.model.r: 
             for p in self.model.p: 
                 import_link = f'{r}_{p}'
-                for t in self.model.t:
-                    import_term += getattr(model, import_link + '_trans')[t]
-        
+                if hasattr(self.model, import_link + '_trans'): 
+                    for t in self.model.t:
+                        import_term += getattr(self.model, import_link + '_trans')[t]
+                else: 
+                    export_term += 0 
+
         demand_term = 0
         for r in self.model.r: 
-            for t in self.model.t: 
-                demand_term += getattr(model, r + '_load')[t]
+            if hasattr(self.model, r + '_load'): 
+                for t in self.model.t: 
+                    demand_term += getattr(self.model, r + '_load')[t]
+            else: 
+                demand_term +=0
         
         constraint_expr = (generation_term 
             + solar_term 
@@ -209,9 +235,9 @@ class Opt_Model:
         self.model.gen_to_demand_rule.add(constraint_expr)
 
        
-    def solve_model(self, solver_name="cbc"):
+    def solve_model(self, model, solver_name):
         
         solver = pyomo.SolverFactory(solver_name)
-        solution = solver.solve(self.model)
+        solution = solver.solve(model)
         
         return solution
