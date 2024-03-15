@@ -14,10 +14,10 @@ class Transmission:
     def parameters(self, model):
 
         self.transCost = pyomo.Param(initialize=self.cost)
-        setattr(model, self.trans_link + '_cost', self.transCost)
+        setattr(model, self.trans_link + '_transCost', self.transCost)
 
         self.transCap = pyomo.Param(initialize=self.capacity)
-        setattr(model, self.trans_link + '_cap', self.transCap)
+        setattr(model, self.trans_link + '_transCap', self.transCap)
        
         self.transEff = pyomo.Param(initialize=self.efficiency)
         setattr(model, self.trans_link + '_efficiency', self.transEff)
@@ -40,18 +40,15 @@ class Transmission:
         tranmission_cost_term = 0
 
         transmission_cost_term = pyomo.quicksum(
-            getattr(model, self.trans_link + '_trans')[t] * getattr(model, self.trans_link + '_cost')
+            getattr(model, self.trans_link + '_trans')[t] * getattr(model, self.trans_link + '_transCost')
             for t in model.t)
 
         return transmission_cost_term
 
     def constraints(self, model):
         
-        model.trans_limits_rule = pyomo.ConstraintList()
-
         for t in model.t:
             constraint_expr = getattr(model, self.trans_link + '_transCap') - getattr(model, self.trans_link + '_trans')[t] >= 0 
-
-            model.trans_limits_rule.add(constraint_expr)
+            setattr(model, self.trans_link + '_trans_limit_rule', pyomo.Constraint(expr=constraint_expr))
 
         return model
