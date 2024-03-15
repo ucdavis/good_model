@@ -49,6 +49,6 @@ class Transmission:
         
         for t in model.t:
             constraint_expr = getattr(model, self.trans_link + '_transCap') - getattr(model, self.trans_link + '_trans')[t] >= 0 
-            setattr(model, self.trans_link + '_trans_limit_rule', pyomo.Constraint(expr=constraint_expr))
+            setattr(model, self.trans_link + '_trans_limit_rule_' + str(t), pyomo.Constraint(expr=constraint_expr))
 
         return model

@@ -108,6 +108,6 @@ class Wind:
 
             wind_constraints[s] = wind_constraints_region
         
-        setattr(model, self.region_id + '_wolar_install_limits', wind_constraints)
+        setattr(model, self.region_id + '_wind_install_limits', wind_constraints)
 
         return model

@@ -169,7 +169,7 @@ class Opt_Model:
                 for c in self.model.cc: 
                     for t in self.model.t: 
                         wind_term += ( 
-                            (getattr(model, r + '_windCap')[r] + getattr(model, r + '_windNew')[w, c]) * getattr(model, r + '_windprofile')[w][t]
+                            (getattr(model, r + '_windCap') + getattr(model, r + '_windNew')[w, c]) * getattr(model, r + '_windprofile')[w][t]
                             )
         
         storage_term = 0 
@@ -183,14 +183,14 @@ class Opt_Model:
             for r in self.model.r: 
                 export_link = f'{o}_{r}'
                 for t in self.model.t:
-                    export_term += getattr(model, export_link + '_trans')[o, r, t] *  getattr(model, export_link + '_efficiency')
+                    export_term += getattr(model, export_link + '_trans')[t] *  getattr(model, export_link + '_efficiency')
 
         import_term = 0 
         for r in self.model.r: 
             for p in self.model.p: 
                 import_link = f'{r}_{p}'
                 for t in self.model.t:
-                    import_term += getattr(model, import_link + '_trans') [r, p, t]
+                    import_term += getattr(model, import_link + '_trans')[t]
         
         demand_term = 0
         for r in self.model.r: 
