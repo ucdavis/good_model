@@ -2,18 +2,21 @@ import pyomo.environ as pyomo
 from .constants import storage_efficiency
 from .constants import storage_flow_limit
 
-
 class Storage:
-    def __init__(self, region_id, **kwargs):
+    def __init__(self, region_id, *kwargs):
         self.region_id = region_id
-        self.storage_capacity = kwargs.get('capacity', 0)
-        self.efficiency = storage_efficiency
-        self.cost = kwargs.get('cost', 0)
-        self.storage_flow_limit = storage_flow_limit
+        self.storage_data = kwargs
+
+        for data in self.storage_data: 
+
+            self.storage_capacity = data.get('capacity', 0)
+            self.efficiency = storage_efficiency
+            self.cost = data.get('cost', 0)
+            self.storage_flow_limit = storage_flow_limit
 
     def parameters(self, model):
 
-        self.storCap = pyomo.Param(self.region_id, initialize=self.storage_capacity)
+        self.storCap = pyomo.Param(initialize=self.storage_capacity)
         setattr(model, self.region_id + '_storCap', self.storCap)
 
         self.storEff = pyomo.Param(initialize=self.efficiency)
@@ -44,18 +47,21 @@ class Storage:
         return 0 
    
     def constraints(self, model):
-        # Max storage constraint
-        model.maxStorage_rule = pyomo.ConstraintList()
-    
+
+        maxStorage_rule = {}
+
         for t in model.t:
-            model.maxStorage_rule.add(getattr(model, self.region_id + '_storCap') - getattr(model, self.region_id + '_storSOC')[t] >= 0)
+            expr = getattr(model, self.region_id + '_storCap') - getattr(model, self.region_id + '_storSOC')[t] >= 0
+
+            maxStorage_rule[t] = pyomo.Constraint(expr=expr)
+
+        setattr(model, self.region_id + '_wind_install_limits', wind_constraints)
 
         # Storage state-of-charge constraint
         model.storageSOC_rule = pyomo.ConstraintList()
         
-
         for t in model.t:
-            if t == min(model.t):  # Assuming model.t is an ordered set
+            if t == min(model.t):  
                 model.storageSOC_rule.add(getattr(model, self.region_id + '_storSOC')[t] == 0)
             else:
                 t_1 = t-1

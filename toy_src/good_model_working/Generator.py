@@ -3,23 +3,27 @@ import pyomo.environ as pyomo
 class Generator:
     def __init__(self, region_id, *generators):
         self.region_id = region_id
-        self.gen_fuel_type = []
-        self.generator_type = []
         self.gen_cost = {}
         self.gen_capacity = {}
+        self.gen_cost[gen_id] = {}
+        self.gen_capacity[gen_id] = {}
 
         for data in generators:
+
             gen_id = data.get('plant_type', 0)
-            self.generator_type.append(gen_id)
+            gen_type_data = data.get('generation',{})
 
-            values = data.get('parameters',{})
-            self.gen_fuel_type += list(values.keys())
+            hold_cost = []
+            hold_capacity = []
+        
+            for params in gen_type_data: 
 
-            for fuel_type, data in values.items(): 
+                fuel_type = params.get('fuel_type', 0)
+                values = params.get('values', {})
+                cost = values.get('cost', 0)
+                capacity = values.get('capacity', 0)
 
-                self.gen_cost[gen_id][fuel_type] = data.get('cost', 0) 
-                self.gen_capacity[gen_id][fuel_type] = data.get('capacity')
-
+                    
     def parameters(self, model):
 
         self.gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost, within=Reals)
@@ -28,11 +32,15 @@ class Generator:
         self.genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity, within=Reals)
         setattr(model, self.region_id + '_genMax', self.genMax)
 
+        return model
+
 
     def variables(self, model):
+
+        if hasattr(model, self.region_id + '_gencost'):
         
-        self.generation = pyomo.Var(model.g, model.gf, model.t, within=pyomo.NonNegativeReals)
-        setattr(model, self.region_id + '_generation', self.generation)
+            self.generation = pyomo.Var(model.g, model.gf, model.t, within=pyomo.NonNegativeReals)
+            setattr(model, self.region_id + '_generation', self.generation)
 
         return model
 

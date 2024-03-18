@@ -13,14 +13,11 @@ class Wind:
 
         for data in wind_data:
 
-            if 'generation_profile' not in data and 'max_capacity' not in data: 
-                continue
-
-            resource_id = data.get('Resource Class', 0)
+            resource_id = str(data.get('resource_class'.strip(), 0))
             self.resource_id.append(resource_id)
 
             # Assuming 'values' contains cost-related information
-            values = data.get('values', {})
+            values = data.get('Values', {})
             self.cost_class += list(values.keys())
 
             # Installed capacity and capacity factor for each resource
