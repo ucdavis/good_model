@@ -154,80 +154,64 @@ class Opt_Model:
         # constraint 1: generation-demand balancing
         self.model.gen_to_demand_rule = pyomo.ConstraintList()
 
-        generation_terms = []
-        for r in self.model.r: 
-            if hasattr(self.model, r + '_generation'): 
-                for gf in self.model.gf:
-                    for t in self.model.t:
-                        generation_terms.append(getattr(self.model, r + '_generation')[g, gf, t])
+        generation_terms = pyomo.Expression(initialize=0)
+        solar_terms = pyomo.Expression(initialize=0)
+        wind_terms = pyomo.Expression(initialize=0)
+        storage_terms = pyomo.Expression(initialize=0)
+        demand_terms = pyomo.Expression(initialize=0)
+        export_terms = pyomo.Expression(initialize=0)
+        import_terms = pyomo.Expression(initialize=0)
         
-        self.timer.toc('Region Balancing: Generation terms built')
-
-        solar_terms = []
-        for r in self.model.r: 
-            if hasattr(self.model, r + '_solarNew'): 
-                for s in self.model.src:
-                    for c in self.model.cc:
-                        for t in self.model.t: 
-                            solar_terms.append((getattr(self.model, r + '_solarCap')[s][c] + getattr(self.model, r + '_solarNew')[s,c]) * getattr(self.model, r + '_solarprofile')[s][t])
-        
-        self.timer.toc('Region Balancing: Solar terms built')
-
-
-        wind_terms = []
-        for r in self.model.r: 
-            if hasattr(self.model, r + '_windNew'):
-                for w in self.model.wrc: 
-                    for c in self.model.cc: 
-                        for t in self.model.t: 
-                            wind_terms.append((getattr(self.model, r + '_windCap') + getattr(self.model, r + '_windNew')[w, c]) * getattr(self.model, r + '_windprofile')[w][t])
-
-        self.timer.toc('Region Balancing: Wind terms built')
        
-        storage_terms = []
         for r in self.model.r: 
-            if hasattr(self.model, r + '_storCharge'):
-                for t in self.model.r: 
-                    storage_terms.append(getattr(self.model, r + '_storDischarge')[t] - getattr(self.model, r + '_storCharge')[t])
+            for t in self.model.t: 
 
-        self.timer.toc('Region Balancing: Storage terms built')
+                if hasattr(self.model, r + '_generation'): 
+                    for gf in self.model.gf:
+                        generation_terms += (getattr(self.model, r + '_generation')[g, gf, t])
 
-        export_terms = []
+                if hasattr(self.model, r + '_solarNew'): 
+                    for s in self.model.src:
+                        for c in self.model.cc:
+                            solar_terms += (getattr(self.model, r + '_solarCap')[s][c] + getattr(self.model, r + '_solarNew')[s,c]) * getattr(self.model, r + '_solarprofile')[s][t]
+
+                if hasattr(self.model, r + '_windNew'):
+                    for w in self.model.wrc: 
+                        for c in self.model.cc: 
+                         wind_terms += (getattr(self.model, r + '_windCap') + getattr(self.model, r + '_windNew')[w, c]) * getattr(self.model, r + '_windprofile')[w][t]
+
+
+                if hasattr(self.model, r + '_storCharge'):
+                    storage_terms += (getattr(self.model, r + '_storDischarge')[t] - getattr(self.model, r + '_storCharge')[t])
+
+                demand_terms = []
+                if hasattr(self.model, r + '_load'): 
+                    demand_terms += getattr(self.model, r + '_load')[t]
+
+
         for o in self.model.o: 
             for r in self.model.r: 
                 export_link = f'{o}_{r}'
                 if hasattr(self.model, export_link + '_trans'): 
                     for t in self.model.t:
-                        export_terms.append(getattr(self.model, export_link + '_trans')[t] *  getattr(self.model, export_link + '_efficiency'))
-
-        self.timer.toc('Region Balancing: Export terms built')
+                        export_terms += getattr(self.model, export_link + '_trans')[t] *  getattr(self.model, export_link + '_efficiency')
         
-        import_terms = []
         for r in self.model.r: 
             for p in self.model.p: 
                 import_link = f'{r}_{p}'
                 if hasattr(self.model, import_link + '_trans'): 
                     for t in self.model.t:
-                        import_terms.append(getattr(self.model, import_link + '_trans')[t])
+                        import_terms += getattr(self.model, import_link + '_trans')[t]
 
-        self.timer.toc('Region Balancing: Import terms built')
-
-        demand_terms = []
-        for r in self.model.r: 
-            if hasattr(self.model, r + '_load'): 
-                for t in self.model.t: 
-                    demand_terms.append(getattr(self.model, r + '_load')[t])
-
-        self.timer.toc('Region Balancing: Demand terms built')
-
+ 
         constraint_expr = (
-            pyomo.quicksum(generation_terms) 
-            + pyomo.quicksum(solar_terms) 
-            + pyomo.quicksum(wind_terms) 
-            + pyomo.quicksum(storage_terms)
-            + pyomo.quicksum(import_terms)
-            - pyomo.quicksum(export_terms)
-            - pyomo.quicksum(demand_terms)
+            generation_terms
+            + solar_terms 
+            + wind_terms
+            + storage_terms
+            + import_terms
+            - export_terms
+            - demand_terms
         ) == 0
 				
         self.model.gen_to_demand_rule.add(constraint_expr)
