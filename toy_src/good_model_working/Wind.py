@@ -3,36 +3,53 @@ import pyomo.environ as pyomo
 class Wind:
     def __init__(self, region_id, *wind_data):
         self.region_id = region_id
-        self.resource_id = []
-        self.installed_capacity = []
+        self.installed_capacity = 0
         self.gen_profile = {}
         self.max_capacity = {}
         self.cost = {}
-        self.trans_cost = {}
-        self.cost_class = []
+        self.transmission_cost = {}
 
         for data in wind_data:
 
-            resource_id = str(data.get('resource_class'.strip(), 0))
-            self.resource_id.append(resource_id)
+            data_type = data.get('data_tye', 0)
+            parameters = data.get('parameters', [])
 
-            # Assuming 'values' contains cost-related information
-            values = data.get('Values', {})
-            self.cost_class += list(values.keys())
+            if data_type == 'wind_cost': 
 
-            # Installed capacity and capacity factor for each resource
-            self.installed_capacity = data.get('capacity', 0)
-            self.gen_profile[resource_id] = data.get('generation_profile', {})
+                for params in parameters: 
+                    
+                    resource_id = str(params.get('resource_class', 0))
+                    values = data.get('values', {})
+                    for cost_class, info in values.items():
+                        self.cost[resource_id][cost_class] = info.get('cost', None)
 
-            # Max capacity and cost for each cost class
-            for cost_class, info in values.items():
-                self.max_capacity[resource_id][cost_class] = info.get('max_capacity', 0)
-                self.cost[resource_id][cost_class] = info.get('cost', 0)
-                self.trans_cost[resource_id][cost_class] = info.get('transmission_cost', 0)
+            elif data_type == 'wind_max_capacity': 
+                
+                for params in parameters: 
+                    resource_id = str(data.params('resource_class', 0))
+                    values = params.get('values', {})
+                    for cost_class, info in values.items():
+                        self.max_capacity[resource_id][cost_class] = info.get('max_capacity', None)
 
-        self.param_list = [self.gen_profile,
-            self.max_capacity, self.cost, self.trans_cost]
+            elif data_type == 'wind_installed_capacity': 
+                
+                for params in parameters: 
+                    resource_id = str(params.get('resource_class', 0))
+                    self.installed_capacity[resource_id] = data.get('capacity', 0)
 
+            elif data_type == 'wind_gen':
+                 
+                 for params in parameters: 
+                    resource_id = str(data.get('resource_class', 0))
+                    self.gen_profile[resource_id] = data.get('generation_profile', {})
+
+            elif data_type == 'transmission_cost': 
+                 
+                 for params in parameters: 
+                    resource_id = str(params.get('resource_class', 0))
+                    self.transmission_cost[resource_id] = params.get('transmission_cost', 0)
+
+        self.check_valid_params_list = [self.gen_profile, self.cost]
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -40,7 +57,7 @@ class Wind:
         ## nested dictionary, ex: model.c_windprofile[w][t]
         ## tuple dictionary, ex: model.c_windprofile[w,t]
 
-        if all(self.param_list) and isinstance(self.param_list, (dict, list)):
+        if all(self.check_valid_params_list):
         
             windCap = pyomo.Param(initialize=self.installed_capacity, within=pyomo.Any)
             setattr(model, self.region_id + '_windCap', windCap)

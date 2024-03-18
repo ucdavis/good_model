@@ -4,32 +4,53 @@ class Solar:
     def __init__(self, region_id, *solar_data):
         
         self.region_id = region_id
-        self.resource_id = []
-        self.cost_class = []
-        self.installed_capacity = {}
+        self.installed_capacity = 0
         self.gen_profile = {}
         self.max_capacity = {}
         self.cost = {}
+        self.transmission_cost = {}
 
         for data in solar_data:
+
+            data_type = data.get('data_type', 0)
+            parameters = data.get('parameters', [])
+
+            if data_type == 'solar_cost': 
+
+                for params in parameters: 
+                    
+                    resource_id = str(params.get('resource_class', 0))
+                    values = data.get('values', {})
+                    for cost_class, info in values.items():
+                        self.cost[resource_id][cost_class] = info.get('cost', None)
+
+            elif data_type == 'solar_max_capacity': 
+                
+                for params in parameters: 
+                    resource_id = str(data.params('resource_class', 0))
+                    values = params.get('values', {})
+                    for cost_class, info in values.items():
+                        self.max_capacity[resource_id][cost_class] = info.get('max_capacity', None)
+
+            elif data_type == 'solar_installed_capacity': 
+                
+                for params in parameters: 
+                    self.installed_capacity = data.get('capacity', 0)
+
+            elif data_type == 'solar_gen':
+                 
+                 for params in parameters: 
+                    resource_id = str(data.get('resource_class', 0))
+                    self.gen_profile[resource_id] = data.get('generation_profile', {})
+
+            elif data_type == 'transmission_cost': 
+                 
+                 for params in parameters: 
+                    resource_id = str(params.get('resource_class', 0))
+                    self.transmission_cost[resource_id] = params.get('transmission_cost', 0)
+
             
-            resource_id = str(data.get('Resource Class ', 0))
-            self.resource_id.append(resource_id)
-           
-            # Assuming 'values' contains cost-related information
-            values = data.get('values', {})
-            self.cost_class += [str(key) for key in values.keys()]
-
-            # Installed capacity and capacity factor for each resource
-            self.installed_capacity[resource_id] = data.get('capacity', 0)
-            self.gen_profile[resource_id] = data.get('generation_profile', {})
-
-            # Max capacity and cost for each cost class
-            for cost_class, info in values.items():
-                self.max_capacity[resource_id][cost_class] = info.get('max_capacity', None)
-                self.cost[resource_id][cost_class] = info.get('cost', None)
-
-        self.param_list = [self.gen_profile, self.max_capacity, self.cost]
+        self.check_valid_params_list = [self.gen_profile, self.cost]
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -37,7 +58,7 @@ class Solar:
         ## nested dictionary, ex: model.c_solarprofile[s][t]
         ## tuple dictionary, ex: model.c_solarprofile[s,t]
         
-        if all(self.param_list):
+        if all(self.check_valid_params_list):
             
             self.solarCap = pyomo.Param(model.src, initialize=self.installed_capacity, within=pyomo.Reals)
             setattr(model, self.region_id + '_solarCap', self.solarCap)
@@ -50,6 +71,9 @@ class Solar:
 
             self.solarCost = pyomo.Param(model.src, model.cc, initialize=self.cost, within=pyomo.Reals)
             setattr(model, self.region_id + '_solarCost', self.solarCost)
+
+            self.transCost = pyomo.Param(model.src, initialize=self.transmission_cost)
+            setattr(model, self.region_id + '_solarTransCost', self.transCost)
 
         return model 
 
