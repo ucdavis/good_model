@@ -458,7 +458,7 @@ def load_object(df):
             parameters[hour] = load
 
         # Append data to load_example list
-        load_example.append({'id': region_name, 'dependents': [{'data_type': 'load', 'parameters': [{"value": parameters}]}]})
+        load_example.append({'id': region_name, 'dependents': [{'data': 'storage', 'parameter': [{'data_type': 'load', 'parameters': [{"value": parameters}]}]}]})
     return load_example
 
 
@@ -481,9 +481,9 @@ def gen_object(df):
         for region_data in gen_example:
             if region_data['id'] == region_name:
                 # Append the new data to the existing region
-                region_data['dependents'][0]['parameters'].append({
-                    'plant_type': plant_type,
-                    'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
+                region_data['dependents'].append({'data': 'generator', 'parameters': [{'data_type': "generators",'parameters': [{
+                            'plant_type': plant_type,'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]}]
+                    }]
                 })
                 region_exists = True
                 break
@@ -492,10 +492,10 @@ def gen_object(df):
         if not region_exists:
             gen_example.append({
                 'id': region_name,
-                'dependents': [{'data_type': "generators", 'parameters': [{
+                'dependents': [{'data': 'generator', 'parameter': [{'data_type': "generators", 'parameters': [{
                     'plant_type': plant_type,
                     'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
-                }]}]
+                }]}]}]
             })
 
     return gen_example
@@ -513,7 +513,7 @@ def storage_object(df):
         capacity = row.iloc[4]
         group_id = row.iloc[12]
         # Append data to load_example list
-        stor_example.append({'id': region_name, 'dependents': [{'data_type': plant_type, 'parameters':  [{"cost": cost, "capacity": capacity}]}]})
+        stor_example.append({'id': region_name, 'dependents': [{'data': 'storage', 'parameter': [{'data_type': plant_type, 'parameters':  [{"cost": cost, "capacity": capacity}]}]}]})
     return stor_example
 
 
@@ -536,7 +536,7 @@ def solar_object(df1, df2, df3, df4, Plants_group, Region):
     # Iterate over each region name
     for region_name in Region:
         # Initialize a dictionary for the current region
-        region_data = {'id': region_name, 'dependents': []}
+        region_dict = {'id': region_name, 'dependents': []}
 
         # Filter DataFrames for the current region
         gen_profile_df = df1[df1['IPM Region'] == region_name]
@@ -550,37 +550,37 @@ def solar_object(df1, df2, df3, df4, Plants_group, Region):
         for index, row in gen_profile_df.iterrows():
             gen_profile = row.drop(['IPM Region', 'Resource Class', 'State', "New Resource Class"]).dropna().to_dict()
             solar_gen_params['parameters'].append({'resource_class': row['New Resource Class'], 'generation_profile': gen_profile})
-        region_data['dependents'].append(solar_gen_params)
+        region_dict['dependents'].append({'data': 'solar', 'parameters': solar_gen_params})
 
         # Add solar cost data
         solar_cost_params = {'data_type': 'solar_cost', 'parameters': []}
         for index, row in solar_cost_df.iterrows():
             cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
-            solar_cost_params['parameters'].append({'Rresource_class': row['New Resource Class'], 'cost': cost_profile})
-        region_data['dependents'].append(solar_cost_params)
+            solar_cost_params['parameters'].append({'resource_class': row['New Resource Class'], 'cost': cost_profile})
+        region_dict['dependents'].append({'data': 'solar', 'parameters': solar_cost_params})
 
         # Add solar max capacity data
         solar_max_capacity_params = {'data_type': 'solar_max_capacity', 'parameters': []}
         for index, row in max_capacity_df.iterrows():
             max_capacity_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
             solar_max_capacity_params['parameters'].append({'resource_class': row['New Resource Class'], 'max_capacity': max_capacity_profile})
-        region_data['dependents'].append(solar_max_capacity_params)
+        region_dict['dependents'].append({'data': 'solar', 'parameters': solar_max_capacity_params})
 
         # Add solar installed capacity data
         solar_installed_capacity_params = {'data_type': 'solar_installed_capacity', 'parameters': []}
         for index, row in installed_capacity_df.iterrows():
             solar_installed_capacity_params['parameters'].append({'capacity': row['Capacity']})
-        region_data['dependents'].append(solar_installed_capacity_params)
+        region_dict['dependents'].append({'data': 'solar', 'parameters': solar_installed_capacity_params})
 
         # Add solar transmission cost data
         solar_transmission_cost_params = {'data_type': 'solar_transmission_cost', 'parameters': []}
         for index, row in trans_cost_df.iterrows():
             trans_cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
             solar_transmission_cost_params['parameters'].append({'resource_class': row['New Resource Class'], 'transmission_cost': trans_cost_profile})
-        region_data['dependents'].append(solar_transmission_cost_params)
+        region_dict['dependents'].append({'data': 'solar', 'parameters': solar_transmission_cost_params})
 
         # Append region data to solar examples
-        solar_examples.append(region_data)
+        solar_examples.append(region_dict)
 
     return solar_examples
 
@@ -600,13 +600,13 @@ def wind_object(df1, df2, df3, df4, Plants_group, Region):
     # Merge df1 with df2 on 'IPM Region', 'State', and 'Resource Class' columns
     df1 = pd.merge(df1, df2[['IPM Region', 'State', 'Resource Class', 'New Resource Class']], how="left", on=["IPM Region", "State", "Resource Class"])
 
-    # Initialize an empty list to hold solar examples
+    # Initialize an empty list to hold wind examples
     wind_examples = []
 
     # Iterate over each region name
     for region_name in Region:
         # Initialize a dictionary for the current region
-        region_data = {'id': region_name, 'dependents': []}
+        region_dict = {'id': region_name, 'dependents': []}
 
         # Filter DataFrames for the current region
         gen_profile_df = df1[df1['IPM Region'] == region_name]
@@ -615,42 +615,42 @@ def wind_object(df1, df2, df3, df4, Plants_group, Region):
         installed_capacity_df = max_cap[max_cap['RegionName'] == region_name]
         trans_cost_df = df4[df4['IPM Region'] == region_name]
 
-        # Add solar generation profile data
-        solar_gen_params = {'data_type': 'wind_gen', 'parameters': []}
+        # Add wind generation profile data
+        wind_gen_params = {'data_type': 'wind_gen', 'parameters': []}
         for index, row in gen_profile_df.iterrows():
             gen_profile = row.drop(['IPM Region', 'Resource Class', 'State', "New Resource Class"]).dropna().to_dict()
-            solar_gen_params['parameters'].append({'resource_class': row['New Resource Class'], 'generation_profile': gen_profile})
-        region_data['dependents'].append(solar_gen_params)
+            wind_gen_params['parameters'].append({'resource_class': row['New Resource Class'], 'generation_profile': gen_profile})
+        region_dict['dependents'].append({'data': 'wind', 'parameters': wind_gen_params})
 
-        # Add solar cost data
-        solar_cost_params = {'data_type': 'wind_cost', 'parameters': []}
+        # Add wind cost data
+        wind_cost_params = {'data_type': 'wind_cost', 'parameters': []}
         for index, row in wind_cost_df.iterrows():
             cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
-            solar_cost_params['parameters'].append({'resource_class': row["New Resource Class"], 'cost': cost_profile})
-        region_data['dependents'].append(solar_cost_params)
+            wind_cost_params['parameters'].append({'resource_class': row["New Resource Class"], 'cost': cost_profile})
+        region_dict['dependents'].append({'data': 'wind', 'parameters': wind_cost_params})
 
-        # Add solar max capacity data
-        solar_max_capacity_params = {'data_type': 'wind_max_capacity', 'parameters': []}
+        # Add wind max capacity data
+        wind_max_capacity_params = {'data_type': 'wind_max_capacity', 'parameters': []}
         for index, row in max_capacity_df.iterrows():
             max_capacity_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
-            solar_max_capacity_params['parameters'].append({'resource_class': row["New Resource Class"], 'max_capacity': max_capacity_profile})
-        region_data['dependents'].append(solar_max_capacity_params)
+            wind_max_capacity_params['parameters'].append({'resource_class': row["New Resource Class"], 'max_capacity': max_capacity_profile})
+        region_dict['dependents'].append({'data': 'wind', 'parameters': wind_max_capacity_params})
 
-        # Add solar installed capacity data
-        solar_installed_capacity_params = {'data_type': 'wind_installed_capacity', 'parameters': []}
+        # Add wind installed capacity data
+        wind_installed_capacity_params = {'data_type': 'wind_installed_capacity', 'parameters': []}
         for index, row in installed_capacity_df.iterrows():
-            solar_installed_capacity_params['parameters'].append({'capacity': row['Capacity']})
-        region_data['dependents'].append(solar_installed_capacity_params)
+            wind_installed_capacity_params['parameters'].append({'capacity': row['Capacity']})
+        region_dict['dependents'].append({'data': 'wind', 'parameters': wind_installed_capacity_params})
 
-        # Add solar transmission cost data
-        solar_transmission_cost_params = {'data_type': 'wind_transmission_cost', 'parameters': []}
+        # Add wind transmission cost data
+        wind_transmission_cost_params = {'data_type': 'wind_transmission_cost', 'parameters': []}
         for index, row in trans_cost_df.iterrows():
             trans_cost_profile = row.drop(['IPM Region', 'State', 'Resource Class', "New Resource Class"]).dropna().to_dict()
-            solar_transmission_cost_params['parameters'].append({'resource_class': row["New Resource Class"], 'transmission_cost': trans_cost_profile})
-        region_data['dependents'].append(solar_transmission_cost_params)
+            wind_transmission_cost_params['parameters'].append({'resource_class': row["New Resource Class"], 'transmission_cost': trans_cost_profile})
+        region_dict['dependents'].append({'data': 'wind', 'parameters': wind_transmission_cost_params})
 
-        # Append region data to solar examples
-        wind_examples.append(region_data)
+        # Append region data to wind examples
+        wind_examples.append(region_dict)
 
     return wind_examples
 
