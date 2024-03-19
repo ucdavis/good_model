@@ -458,7 +458,7 @@ def load_object(df):
             parameters[hour] = load
 
         # Append data to load_example list
-        load_example.append({'id': region_name, 'dependents': [{'data_class': 'load', 'parameter': [{'data_type': 'load', 'parameters': [{"value": parameters}]}]}]})
+        load_example.append({'id': region_name, 'dependents': [{'data_class': 'load', 'parameters': [{'data_type': 'load', 'parameters': [{"value": parameters}]}]}]})
     return load_example
 
 
