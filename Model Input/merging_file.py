@@ -486,10 +486,10 @@ def gen_object(df):
 
                 # If the data_type exists, append parameters with different plant type
                 if existing_data_type_index is not None:
-                    region_data['dependents'][existing_data_type_index]['parameters'].append([{
+                    region_data['dependents'][existing_data_type_index]['parameters'].append({
                         'plant_type': plant_type,
                         'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
-                    }])
+                    })
                 else:  # If the data_type doesn't exist, create a new one
                     region_data['dependents'].append({
                         'data_class': 'generator',
