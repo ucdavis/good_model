@@ -110,14 +110,15 @@ class Solar:
 
             for c in model.cc:
                 solar_install_limits_rule = pyomo.ConstraintList()
-                solar_constraints_region[c] = solar_install_limits_rule
 
                 if hasattr(model, self.region_id + '_solarNew'):
                     constraint_expr = getattr(model, self.region_id + '_solarMax')[s][c] - getattr(model, self.region_id + '_solarNew')[s, c] >= 0
-                    solar_constraints_region[c] = (constraint_expr)
+                    solar_install_limits_rule.add(constraint_expr)
                 else:
                     constraint_expr = pyomo.Constraint.Skip()
-                    solar_constraints_region[c] = (constraint_expr)
+                    solar_install_limits_rule.add(constraint_expr)
+
+                solar_constraints_region[c] = solar_install_limits_rule
 
             solar_constraints[s] = solar_constraints_region
         

@@ -93,35 +93,35 @@ class Wind:
 
         if hasattr(model, self.region_id + '_windNew'):
 
-            wind_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_windCost')[w][c] + getattr(model, self.region_id + '_windTransCost')[w][c]) * getattr(model, self.region_id + '_windNew')[w,c]
-                for w in model.wrc
-                for c in model.cc
-                ) 
+            for w in model.wrc: 
+                for c in model.cc:
+                    wind_cost_term = (
+                        (getattr(model, self.region_id + '_windCost')[w][c] + getattr(model, self.region_id + '_windTransCost')[w][c]) * getattr(model, self.region_id + '_windNew')[w,c]
+                        ) 
         
         return wind_cost_term
 
     def constraints(self, model):
-        # Corrected and simplified constraints definition
     
-        wind_constraints = {}  # Dictionary to store constraint lists for each region
+        wind_constraints = {}  
 
-        for s in model.wrc:
-            wind_constraints_region = {}  # Dictionary to store constraint lists for each region
+        for w in model.wrc:
+            wind_constraints_region = {}  
 
             for c in model.cc:
                 wind_install_limits_rule = pyomo.ConstraintList()
-                wind_constraints_region[c] = wind_install_limits_rule
 
                 if hasattr(model, self.region_id + '_windNew'):
                     constraint_expr = getattr(model, self.region_id + '_windMax')[w][c] - getattr(model, self.region_id + '_windNew')[w, c] >= 0
-                    wind_constraints_region[c] = (constraint_expr)
+                    wind_install_limits_rule.add(constraint_expr)
                 else:
                     constraint_expr = pyomo.Constraint.Skip()
-                    wind_constraints_region[c] = (constraint_expr)
+                    wind_install_limits_rule.add(constraint_expr)
 
-            wind_constraints[s] = wind_constraints_region
-        
+                wind_constraints_region[c] = wind_install_limits_rule
+
+            wind_constraints[w] = wind_constraints_region
+                
         setattr(model, self.region_id + '_wind_install_limits', wind_constraints)
 
         return model

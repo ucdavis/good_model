@@ -88,7 +88,7 @@ class Storage:
         setattr(model, self.region_id + '_storage_capacity_rule', maxStorage_rule)
         setattr(model, self.region_id + '_storage_SOC_rule', storSOC_rule)
         setattr(model, self.region_id + '_stor_discharge_rule', storDischarge_rule)
-        setattr(model, self.region_id + '_storcharge_rule', storCharge_rule)
+        setattr(model, self.region_id + '_stor_charge_rule', storCharge_rule)
 
         return model
 
