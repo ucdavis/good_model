@@ -57,7 +57,7 @@ class Opt_Model:
 
         self.build_parameters()
         self.timer.toc('Parameters built')
-
+    
         self.build_variables()
         self.timer.toc('Variables built')
 
@@ -75,10 +75,11 @@ class Opt_Model:
 
         self.model.t = pyomo.Set(initialize=self.time_periods)
         self.model.r = pyomo.Set(initialize=self.region_list)
-        self.model.o = pyomo.Set(initialize=self.region_list)
+        self.model.o = pyomo.Set(initialize=self.region_list) 
         self.model.p = pyomo.Set(initialize=self.region_list)
         self.model.g = pyomo.Set(initialize=self.generator_type)
         self.model.gf = pyomo.Set(initialize=self.gen_fuel_type)
+        self.model.g_gf = pyomo.Set(initialize=self.model.g * self.model.gf)
         self.model.src = pyomo.Set(initialize=self.solar_ids)
         self.model.wrc = pyomo.Set(initialize=self.wind_ids)
         self.model.cc = pyomo.Set(initialize=self.cost_class_ids)
@@ -91,21 +92,24 @@ class Opt_Model:
 
         for source, adjacency in self.graph._adj.items():
            
-           for target, link in adjacency.items():
+            for target, link in adjacency.items():
 
-	            link['object'].parameters(self.model)
-        
+                link['object'].parameters(self.model)
+
+            
     def build_variables(self):
 
         for node in self.graph._node.values():
 
             node['object'].variables(self.model)
 
+
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
 
                link['object'].variables(self.model)
+
 
     def build_objective(self):
         
@@ -173,12 +177,12 @@ class Opt_Model:
                 if hasattr(self.model, r + '_solarNew'): 
                     for s in self.model.src:
                         for c in self.model.cc:
-                            solar_terms += (getattr(self.model, r + '_solarCap')[s][c] + getattr(self.model, r + '_solarNew')[s,c]) * getattr(self.model, r + '_solarprofile')[s][t]
+                            solar_terms += (getattr(self.model, r + '_solarCap')[s,c] + getattr(self.model, r + '_solarNew')[s,c]) * getattr(self.model, r + '_solarprofile')[s,t]
 
                 if hasattr(self.model, r + '_windNew'):
                     for w in self.model.wrc: 
                         for c in self.model.cc: 
-                         wind_terms += (getattr(self.model, r + '_windCap') + getattr(self.model, r + '_windNew')[w, c]) * getattr(self.model, r + '_windprofile')[w][t]
+                         wind_terms += (getattr(self.model, r + '_windCap')[w,c] + getattr(self.model, r + '_windNew')[w, c]) * getattr(self.model, r + '_windprofile')[w,t]
 
 
                 if hasattr(self.model, r + '_storCharge'):

@@ -13,24 +13,21 @@ class Transmission:
     
     def parameters(self, model):
 
-        self.transCost = pyomo.Param(initialize=self.cost)
-        setattr(model, self.trans_link + '_transCost', self.transCost)
+        trans_cost = pyomo.Param(initialize=self.cost, within=pyomo.NonNegativeReals)
+        setattr(model, self.trans_link + '_transCost', trans_cost)
 
-        self.transCap = pyomo.Param(initialize=self.capacity)
-        setattr(model, self.trans_link + '_transCap', self.transCap)
-       
-        self.transEff = pyomo.Param(initialize=self.efficiency)
-        setattr(model, self.trans_link + '_efficiency', self.transEff)
+        trans_caps = pyomo.Param(initialize=self.capacity, within=pyomo.NonNegativeReals)
+        setattr(model, self.trans_link + '_transCap', trans_caps)
 
-        return model
+        trans_eff = pyomo.Param(initialize=self.efficiency, within=pyomo.NonNegativeReals)
+        setattr(model, self.trans_link + '_efficiency', trans_eff)
 
     def variables(self, model):
-        # Assuming model.trans_links is a set of (source, target) tuples
-        # Correct variable definition without using setattr incorrectly 
-
-        self.trans_var = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
         
-        setattr(model, self.trans_link + '_trans', self.trans_var)
+        trans_var = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.trans_link + '_trans', trans_var)
+
+        print('trans_vars')
 
         return model
 

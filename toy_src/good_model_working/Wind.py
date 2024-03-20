@@ -21,7 +21,8 @@ class Wind:
                     values = params.get('cost', {})
 
                     for cost_class, info in values.items():
-                        self.cost[resource_id] = {cost_class: info}
+                        index = (resource_id, cost_class)
+                        self.cost[index] = info
 
             elif data_type == 'wind_max_capacity': 
                 
@@ -31,16 +32,15 @@ class Wind:
                     values = params.get('max_capacity', {})
 
                     for cost_class, info in values.items():
-                        self.max_capacity[resource_id] = {cost_class: info}
+                        index = (resource_id, cost_class)
+                        self.max_capacity[index] = info
                     
 
             elif data_type == 'wind_installed_capacity': 
                 
                 for params in parameters: 
-
                     self.installed_capacity = params.get('capacity', 0)
  
-
             elif data_type == 'wind_gen':
                 
                 for params in parameters:
@@ -54,10 +54,9 @@ class Wind:
                     values = params.get('transmission_cost', 0)
 
                     for cost_class, info in values.items():
-                        self.transmission_cost[resource_id] = {cost_class: info}
+                        index = (resource_id, cost_class)
+                        self.transmission_cost[index] = info
     
-
-        self.check_valid_params_list = [self.gen_profile, self.cost]
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -65,20 +64,30 @@ class Wind:
         ## nested dictionary, ex: model.c_windprofile[w][t]
         ## tuple dictionary, ex: model.c_windprofile[w,t]
 
-        windCap = pyomo.Param(initialize=self.installed_capacity, within=pyomo.Any)
-        setattr(model, self.region_id + '_windCap', windCap)
+        model.add_component(
+            self.region_id + '_windCap', 
+            pyomo.Param(initialize=self.installed_capacity, within=pyomo.Reals)
+        )
 
-        windgenprofile = pyomo.Param(model.wrc, model.t, self.gen_profile, within=pyomo.Any)
-        setattr(model, self.region_id + '_windgenprofile', windgenprofile)
+        model.add_component(
+            self.region_id + '_windgenprofile', 
+            pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, within=pyomo.Reals)
+        )
+      
+        model.add_component(
+            self.region_id + '_windMax', 
+            pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, within=pyomo.Reals)
+        )
 
-        windmax = pyomo.Param(model.wrc, model.cc, self.max_capacity, within=pyomo.Any)
-        setattr(model, self.region_id + '_windMax', windmax)
-
-        windCost = pyomo.Param(model.wrc, model.cc, initialize=self.cost, within=pyomo.Any)
-        setattr(model, self.region_id + '_windCost', windCost)
-
-        windTransCost = pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, within=pyomo.Any)
-        setattr(model, self.region_id + '_windTransCost', windTransCost)
+        model.add_component(
+            self.region_id + '_windCost',
+            pyomo.Param(model.wrc, model.cc, initialize=self.cost, within=pyomo.Reals)
+        )
+    
+        model.add_component( 
+            self.region_id + '_windTransCost',
+            pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, within=pyomo.Reals)
+        )
 
         return model
 
@@ -90,6 +99,8 @@ class Wind:
             windNew = pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals)
             setattr(model, self.region_id + '_windNew', windNew)
 
+            print('wind_vars')
+
         return model
 
     def objective(self, model):
@@ -99,11 +110,12 @@ class Wind:
 
         if hasattr(model, self.region_id + '_windNew'):
 
-            for w in model.wrc: 
-                for c in model.cc:
-                    wind_cost_term = (
-                        (getattr(model, self.region_id + '_windCost')[w][c] + getattr(model, self.region_id + '_windTransCost')[w][c]) * getattr(model, self.region_id + '_windNew')[w,c]
-                        ) 
+            wind_cost_term = pyomo.quicksum(
+                (getattr(model, self.region_id + '_windCost')[w,c] + getattr(model, self.region_id + '_windTransCost')[w][c]) * getattr(model, self.region_id + '_windNew')[w,c]
+                for w in model.wrc
+                for c in model.cc
+                if (w, c) in getattr(model, self.region_id + '_windCost')
+                ) 
         
         return wind_cost_term
 
@@ -114,24 +126,19 @@ class Wind:
         
         for w in model.wrc:
             for c in model.cc:
-                if hasattr(model, self.region_id + '_windNew'):
-                    # Check if the necessary components exist before accessing them
-                    if hasattr(model, self.region_id + '_windMax') and \
+                if hasattr(model, self.region_id + '_windMax') and \
                             hasattr(model, self.region_id + '_windNew'):
-                        constraint_expr = (
-                            getattr(model, self.region_id + '_windMax')[w][c] - 
-                            getattr(model, self.region_id + '_windNew')[w, c] >= 0
-                        )
-                    else:
-                        # Handle the case if the required components don't exist
-                        constraint_expr = pyomo.Constraint.Skip()
-                    
+                    constraint_expr = (
+                        getattr(model, self.region_id + '_windMax')[w,c] - 
+                        getattr(model, self.region_id + '_windNew')[w, c] >= 0
+                    )
                     wind_install_limits_rule.add(constraint_expr)
                     wind_constraints.setdefault(w, {})[c] = wind_install_limits_rule
                 else:
                     constraint_expr = pyomo.Constraint.Skip()
                     wind_install_limits_rule.add(constraint_expr)
                     wind_constraints.setdefault(w, {})[c] = wind_install_limits_rule
+                
                         
         setattr(model, self.region_id + '_wind_install_limits', wind_constraints)
 

@@ -16,29 +16,31 @@ class Storage:
 
     def parameters(self, model):
 
-        self.storCap = pyomo.Param(initialize=self.storage_capacity)
-        setattr(model, self.region_id + '_storCap', self.storCap)
+        storCap = pyomo.Param(initialize=self.storage_capacity)
+        setattr(model, self.region_id + '_storCap', storCap)
 
-        self.storEff = pyomo.Param(initialize=self.efficiency)
-        setattr(model, self.region_id + '_storEff', self.storEff)
+        storEff = pyomo.Param(initialize=self.efficiency)
+        setattr(model, self.region_id + '_storEff', storEff)
 
-        self.storCost = pyomo.Param(self.region_id, initialize=self.cost)
-        setattr(model, self.region_id + '_storCost', self.storCost)
+        storCost = pyomo.Param(self.region_id, initialize=self.cost)
+        setattr(model, self.region_id + '_storCost', storCost)
 
-        self.storFlowCap = pyomo.Param(initialize=self.storage_flow_limit)
-        setattr(model, self.region_id + '_storFlowCap', self.storFlowCap)
+        storFlowCap = pyomo.Param(initialize=self.storage_flow_limit)
+        setattr(model, self.region_id + '_storFlowCap', storFlowCap)
 
 
     def variables(self, model):
 
-        self.storSOC = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
-        setattr(model, self.region_id + '_storSOC', self.storSOC)
+        storSOC = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_storSOC', storSOC)
 
-        self.storCharge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
-        setattr(model, self.region_id + '_storCharge', self.storCharge)
+        storCharge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_storCharge', storCharge)
 
-        self.storDischarge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
-        setattr(model, self.region_id + '_storDischarge', self.storDischarge)
+        storDischarge = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+        setattr(model, self.region_id + '_storDischarge', storDischarge)
+
+        print('storage_vars')
 
         return model
 
