@@ -2,7 +2,7 @@ import pyomo.environ as pyomo
 
 
 class Load:
-    def __init__(self, region_id, *load_data):
+    def __init__(self, region_id, load_data):
         self.region_id = region_id
 
         for data in load_data: 

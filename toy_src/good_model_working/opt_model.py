@@ -75,8 +75,8 @@ class Opt_Model:
 
         self.model.t = pyomo.Set(initialize=self.time_periods)
         self.model.r = pyomo.Set(initialize=self.region_list)
-        self.model.o = pyomo.Set(initialize=self.model.r)
-        self.model.p = pyomo.Set(initialize=self.model.r)
+        self.model.o = pyomo.Set(initialize=self.region_list)
+        self.model.p = pyomo.Set(initialize=self.region_list)
         self.model.g = pyomo.Set(initialize=self.generator_type)
         self.model.gf = pyomo.Set(initialize=self.gen_fuel_type)
         self.model.src = pyomo.Set(initialize=self.solar_ids)
@@ -220,6 +220,6 @@ class Opt_Model:
     def solve_model(self, solver_name="cbc"):
         
         solver = pyomo.SolverFactory(solver_name)
-        solution = solver.solve(self.model)
+        solution = solver.solve(self.model, tee=True)
         
         return solution

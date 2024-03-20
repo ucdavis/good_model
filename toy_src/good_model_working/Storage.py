@@ -3,7 +3,7 @@ from .constants import storage_efficiency
 from .constants import storage_flow_limit
 
 class Storage:
-    def __init__(self, region_id, *kwargs):
+    def __init__(self, region_id, kwargs):
         self.region_id = region_id
         self.storage_data = kwargs
 
@@ -55,33 +55,43 @@ class Storage:
 
         for t in model.t:
             # Storage capacity constraint
-            constraint_expr = (getattr(model, self.region_id + '_storCap') - getattr(model, self.region_id + '_storSOC')[t]) >= 0
+            constraint_expr = (
+                getattr(model, self.region_id + '_storCap') - getattr(model, self.region_id + '_storSOC')[t] 
+                >= 0
+            )
             maxStorage_rule[t] = pyomo.Constraint(expr=constraint_expr)
 
             # Storage state-of-charge constraint
             if t == min(model.t):
-                constraint_expr = getattr(model, self.region_id + '_storSOC')[t] == 0
+                constraint_expr = (
+                    getattr(model, self.region_id + '_storSOC')[t] 
+                    == 0
+                )
+
                 storSOC_rule[t] = pyomo.Constraint(expr=constraint_expr)
             else:
                 t_1 = t - 1
                 constraint_expr = (getattr(model, self.region_id + '_storSOC')[t] - getattr(model, self.region_id + '_storSOC')[t_1]
                     - getattr(model, self.region_id + '_storCharge')[t_1] * getattr(model, self.region_id + '_storEff')
                     + getattr(model, self.region_id + '_storDischarge')[t_1]
-                    ) == 0
+                    == 0
+                )
                 
                 storSOC_rule[t] = pyomo.Constraint(expr=constraint_expr)
 
             # Storage flow-in (charge) constraint
             constraint_expr = (getattr(model, self.region_id + '_storCap') * getattr(model, self.region_id + '_storFlowCap')
                 - getattr(model, self.region_id + '_storCharge')[t]
-                ) >= 0
+                >= 0
+            )
 
             storCharge_rule[t] = pyomo.Constraint(expr=constraint_expr)
                 
             # Storage flow-out (discharge) constraints
             constraint_expr = (getattr(model, self.region_id + '_storCap') * getattr(model, self.region_id + '_storFlowCap')
                 - getattr(model, self.region_id + '_storDischarge')[t]
-                ) >= 0
+                >= 0
+            )
 
             storDischarge_rule[t] = pyomo.Constraint(expr=constraint_expr)
 

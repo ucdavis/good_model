@@ -14,12 +14,12 @@ class RegionNode():
     def build_region_objects(self): 
 
         for d in self.dependents:
-            if d['data_type'] in class_dict_for_region:
-                class_name = class_dict_for_region[d['data_type']] 
+            if d['data_class'] in class_dict_for_region:
+                class_name = class_dict_for_region[d['data_class']] 
                 param = d['parameters']
                 if str(class_name) not in class_dict_for_region:
                     self.region_objects[str(class_name)] = []
-                self.region_objects[str(class_name)].append(class_name(self.region_id, *param))
+                self.region_objects[str(class_name)].append(class_name(self.region_id, param))
 
 
     def parameters(self, model): 

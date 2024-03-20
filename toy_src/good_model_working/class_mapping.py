@@ -5,7 +5,7 @@ from .Storage import Storage
 from .Load import Load
 
 class_dict_for_region = {
-    'generators' : Generator,
+    'generator' : Generator,
     'solar': Solar, 
     'wind': Wind, 
     'storage': Storage,

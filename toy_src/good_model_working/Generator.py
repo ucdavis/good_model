@@ -1,36 +1,71 @@
 import pyomo.environ as pyomo
 
 class Generator:
-    def __init__(self, region_id, *generators):
+    def __init__(self, region_id, generators):
         self.region_id = region_id
         self.gen_cost = {}
         self.gen_capacity = {}
-        self.gen_cost[gen_id] = {}
-        self.gen_capacity[gen_id] = {}
+        self.gen_type = []
+        self.fuel_type = []
 
         for data in generators:
 
-            gen_id = data.get('plant_type', 0)
-            gen_type_data = data.get('generation',{})
+            gen_type_data = data.get('parameters',[])
 
-            hold_cost = []
-            hold_capacity = []
-        
             for params in gen_type_data: 
 
-                fuel_type = params.get('fuel_type', 0)
-                values = params.get('values', {})
-                cost = values.get('cost', 0)
-                capacity = values.get('capacity', 0)
+                gen_id = params.get('plant_type', 0)
+                gen_data = params.get('generation', [])
 
+                total_capacity = 0
+                total_cost = 0
+                hold_capacity = []
+                hold_cost = []
+                wt_capacity = []
+
+                for gen_params in gen_data: 
+
+                    fuel_type = gen_params.get('fuel_type', 0)
+                    self.fuel_type.append(fuel_type)
+                    values = gen_params.get('values', {})
+
+                    self.gen_capacity.setdefault(gen_id, {})
+
+                    if fuel_type not in self.gen_capacity[gen_id].keys():
+                        self.gen_capacity[gen_id][fuel_type] = (values.get('capacity', 0))
+                    else: 
+                        self.gen_capacity[gen_id][fuel_type] += (values.get('capacity', 0))
                     
+                    hold_capacity.append(values.get('capacity', 0))
+                    total_capacity += values.get('capacity',0)
+                    hold_cost.append(values.get('cost', 0))
+
+                for gen, type in self.gen_capacity.items(): 
+                    for fuel, value in type.items():
+                        wt_capacity.append(value/ total_capacity)
+
+                for i in range(len(hold_capacity)):
+                    wt_cost = wt_capacity[i] * hold_cost[i]
+                    total_cost += wt_cost
+                    if not self.fuel_type[i] in self.gen_cost.items():
+                        self.gen_cost.setdefault(gen_id, {})[self.fuel_type[i]] = total_cost
+                    else: 
+                        continue
+
     def parameters(self, model):
 
-        self.gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost, within=Reals)
-        setattr(model, self.region_id + '_gencost', self.gencost)
+        cost_keys = [key for key in self.gen_cost.keys()]
+        cap_keys = [key for key in self.gen_capacity.keys()]
 
-        self.genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity, within=Reals)
-        setattr(model, self.region_id + '_genMax', self.genMax)
+        if cost_keys not in model.g: 
+
+            gencost = pyomo.Param(model.g, model.gf, initialize=self.gen_cost, within=pyomo.Reals)
+            setattr(model, self.region_id + '_gencost', gencost)
+
+        if cap_keys not in model.g:
+
+            genMax = pyomo.Param(model.g, model.gf, initialize=self.gen_capacity, within=pyomo.Reals)
+            setattr(model, self.region_id + '_genMax', genMax)
 
         return model
 
@@ -48,11 +83,13 @@ class Generator:
 
         gen_cost_term = 0
 
-        gen_cost_term = pyomo.quicksum(
-            getattr(model, self.region_id + '_generation')[g, gf, t] * getattr(model, self.region_id + '_gencost')[g][gf]
-            for g in model.g
-            for gf in model.gf 
-            for t in model.t)
+        if hasattr(model, self.region_id + '_generation'):
+
+            gen_cost_term = pyomo.quicksum(
+                getattr(model, self.region_id + '_generation')[g, gf, t] * getattr(model, self.region_id + '_gencost')[g][gf]
+                for g in model.g
+                for gf in model.gf 
+                for t in model.t)
             
         return gen_cost_term
 
@@ -61,21 +98,18 @@ class Generator:
         generator_constraints = {}
 
         for g in model.g: 
-            gen_limits = {}
-
             for gf in model.gf: 
-                gen_type_limits = {}
-
-                for t in model.t: 
+                for t in model.t:  
                     gen_limits_rule = pyomo.ConstraintList()
-                    constraint_expr = (getattr(model, self.region_id + '_genMax')[g,gf] - getattr(model, self.region_id + '_generation')[g, gf, t]) >= 0 
-                    gen_limits_rule.add(constraint_expr)
-                    gen_type_limits[t] = gen_limits_rule
+                    constraint_expr = (
+                        getattr(model, self.region_id + '_genMax')[g,gf] - getattr(model, self.region_id + '_generation')[g, gf, t]
+                        >= 0 
+                    )  
 
-                gen_limits[gf] = gen_type_limits
-
-            generator_constraints[g] = gen_limits
-
+                    gen_limits_rule.add(constraint_expr)                   
+                    generator_constraints.setdefault(g, {}).setdefault(gf, {})[t] = gen_limits_rule
+                    
         setattr(model, self.region_id + '_gen_limits_rule', generator_constraints)
 
         return model
+
