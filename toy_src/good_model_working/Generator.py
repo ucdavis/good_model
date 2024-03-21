@@ -5,51 +5,38 @@ class Generator:
         self.region_id = region_id
         self.gen_cost = {}
         self.gen_capacity = {}
-        self.gen_type = []
         self.fuel_type = []
 
+        print("Generating", generators)
+
         for data in generators:
+            for params in data.get('parameters',[]): 
 
-            gen_type_data = data.get('parameters',[])
-
-            for params in gen_type_data: 
-
-                gen_id = params.get('plant_type', 0)
-                gen_data = params.get('generation', [])
+                gen_id = params.get('plant_type', '')
 
                 total_capacity = 0
-                total_cost = 0
-                hold_capacity = []
-                hold_cost = []
-                wt_capacity = []
+                weighted_costs = {}
 
-                for gen_params in gen_data: 
-
-                    fuel_type = gen_params.get('fuel_type', 0)
-                    self.fuel_type.append(fuel_type)
+                for gen_params in params.get('generation', []): 
+                    fuel = gen_params.get('fuel_type', '')
+                    self.fuel_type.append(fuel)
                     values = gen_params.get('values', {})
+                    capacity = values.get('capacity',0)
+                    cost = values.get('cost',0)
 
-                    gen_key = (gen_id, fuel_type)
-                    if gen_key not in self.gen_capacity.keys():
-                        self.gen_capacity[gen_key]= (values.get('capacity', 0))
-                    else: 
-                        self.gen_capacity[gen_key] += (values.get('capacity', 0))
-                    
-                    hold_capacity.append(values.get('capacity', 0))
-                    total_capacity += values.get('capacity',0)
-                    hold_cost.append(values.get('cost', 0))
+                    gen_key = (gen_id, fuel)
+                    if gen_key not in self.gen_capacity:
+                        self.gen_capacity[gen_key] = 0
+                        weighted_costs[gen_key] = 0
 
-                for (gen, fuel), value in self.gen_capacity.items(): 
-                    wt_capacity.append(value/ total_capacity)
+                    self.gen_capacity[gen_key] += capacity
+                    total_capacity += capacity
+                    weighted_costs[gen_key] += cost * capacity
 
-                for i in range(len(hold_capacity)):
-                    wt_cost = wt_capacity[i] * hold_cost[i]
-                    total_cost += wt_cost
-                    fuel_key = (gen_id, self.fuel_type[i])
-                    if not fuel_key in self.gen_cost.keys():
-                        self.gen_cost[fuel_key] = total_cost
-                    else: 
-                        continue
+                for gen_key, total_weighted_cost in weighted_costs.items():
+                    if self.gen_capacity[gen_key] > 0:
+                        self.gen_cost[gen_key] = total_weighted_cost / self.gen_capacity[gen_key]
+
 
     def parameters(self, model):
 
