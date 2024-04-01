@@ -156,61 +156,6 @@ class Opt_Model:
 
     def region_balancing_constraint(self): 
 
-        # def gen_to_demand_rule(model, t):
-
-        #     generation_terms = 0
-        #     solar_terms = 0
-        #     wind_terms = 0
-        #     storage_terms = 0
-        #     demand_terms = 0
-        #     import_terms = 0
-
-        #     for r in model.r:
-        #         for g in model.gen: 
-        #             if hasattr(model, r + '_generation'):
-        #                 generation_terms += (getattr(model, r + '_generation')[g, t])
-    
-        #         if hasattr(model, f'{r}_solarprofile') and hasattr(model, r + '_solarNew'):
-        #             for s in model.src:
-        #                 if s in getattr(model, f'{r}_solarprofile'):
-        #                     for c in model.cc: 
-        #                         solar_terms += ((getattr(model, r + '_solarCap') + getattr(model, r + '_solarNew')[s, c]) * getattr(model, f'{r}_solarprofile')[s, t])
-
-        #         if hasattr(model, f'{r}_windprofile'):
-        #             for w in model.wrc:
-        #                 if w in getattr(model, f'{r}_windprofile'):
-        #                     for c in model.cc: 
-        #                         wind_terms += ((getattr(model, f'{r}_windCap') + getattr(model, f'{r}_windNew')[w, c]) * getattr(model, f'{r}_windprofile')[w, t])
-
-        #         if hasattr(model, f'{r}_storCharge'):
-        #             storage_terms += getattr(model, f'{r}_storDischarge')[t] - getattr(model, f'{r}_storCharge')[t]
-                    
-        #         if hasattr(model, f'{r}_load'):
-        #             demand_terms += getattr(model, f'{r}_load')[t]
-
-        #         for p in model.p:
-        #             if hasattr(model, f'{r}_{p}_trans'):
-        #                 import_terms += getattr(model, f'{r}_{p}_trans')[t]
-
-        #     export_terms = 0
-        #     for o in model.o:
-        #         for r in model.r:
-        #             if hasattr(model, f'{o}_{r}_trans'):
-        #                 export_terms += getattr(model, f'{o}_{r}_trans')[t] * getattr(model, f'{o}_{r}_efficiency')
-
-        #     return (generation_terms 
-        #         + solar_terms 
-        #         + wind_terms 
-        #         + storage_terms 
-        #         + import_terms 
-        #         - export_terms 
-        #         - demand_terms == 0
-        #     )
-
-        # self.model.gen_to_demand_rule = pyomo.Constraint(self.model.t, rule=gen_to_demand_rule)
-
-
-
         # constraint 1: generation-demand balancing
         self.model.gen_to_demand_rule = pyomo.ConstraintList()
 
