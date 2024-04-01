@@ -80,28 +80,34 @@ class Wind:
         ## tuple dictionary, ex: model.c_windprofile[w,t]
 
         if self.installed_capacity:
-
-            windCap = pyomo.Param(initialize=self.installed_capacity, within=pyomo.Reals)
-            setattr(model, self.region_id + '_windCap', windCap)
+            model.add_component(
+                self.region_id + '_windCap',
+                pyomo.Param(initialize=self.installed_capacity, within=pyomo.Reals)
+            )
  
         if self.gen_profile: 
-            windGenProfile = pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, within=pyomo.Reals)
-            setattr(model, self.region_id + '_windgenprofile', windGenProfile)
+            model.add_component(
+                self.region_id + '_windgenprofile',
+                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, within=pyomo.Reals)
+            )
       
         if self.max_capacity: 
-
-            windMax = pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, within=pyomo.Reals)
-            setattr(model, self.region_id + '_windMax', windMax)
-
+            model.add_component(
+                self.region_id + '_windMax',
+                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, within=pyomo.Reals)
+            )
+        
         if self.cost: 
-
-            windCost = pyomo.Param(model.wrc, model.cc, initialize=self.cost, within=pyomo.Reals)
-            setattr(model, self.region_id + '_windCost', windCost)
-
+            model.add_component(
+                self.region_id + '_windCost',
+                pyomo.Param(model.wrc, model.cc, initialize=self.cost, within=pyomo.Reals)
+            )
+  
         if self.transmission_cost: 
-
-            windTransCost = pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, within=pyomo.Reals)
-            setattr(model, self.region_id + '_windTransCost', windTransCost)
+            model.add_component(
+                self.region_id + '_windTransCost',
+                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, within=pyomo.Reals)
+            )
 
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_windNew[w,c]

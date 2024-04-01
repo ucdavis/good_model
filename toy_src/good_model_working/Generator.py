@@ -5,37 +5,30 @@ class Generator:
         self.region_id = region_id
         self.gen_cost = {}
         self.gen_capacity = {}
-        self.fuel_type = []
         
-        for data in generators:
+
+        for data in generators:     
+            cost_weight = {}
+
             for params in data.get('parameters',[]): 
 
-                gen_id = params.get('plant_type', '')
+                gen_id = params.get('gen_type', '')
+                values = params.get('values', {})
+                capacity = values.get('capacity',0)
+                cost = values.get('cost', 0)
+                
+                if gen_id not in self.gen_capacity:
+                    self.gen_capacity[gen_id] = capacity
+                else: 
+                    self.gen_capacity[gen_id] += capacity
+                
+                cost_weight[gen_id] = cost_weight.get(gen_id, 0) + cost * capacity
 
-                total_capacity = 0
-                weighted_costs = {}
-
-                for gen_params in params.get('generation', []): 
-                    fuel = gen_params.get('fuel_type', '')
-                    self.fuel_type.append(fuel)
-                    values = gen_params.get('values', {})
-                    capacity = values.get('capacity',0)
-                    cost = values.get('cost',0)
-
-                    gen_key = (gen_id, fuel)
-                    if gen_key not in self.gen_capacity:
-                        self.gen_capacity[gen_key] = 0
-                        weighted_costs[gen_key] = 0
-
-                    self.gen_capacity[gen_key] += capacity
-                    total_capacity += capacity
-                    weighted_costs[gen_key] += cost * capacity
-
-                for gen_key, total_weighted_cost in weighted_costs.items():
-                    if self.gen_capacity[gen_key] > 0:
-                        self.gen_cost[gen_key] = total_weighted_cost / self.gen_capacity[gen_key]
-
-
+            for gen_id, wt_cost in cost_weight.items():
+                if self.gen_capacity[gen_id] > 0:
+                    self.gen_cost[gen_id] = wt_cost / self.gen_capacity[gen_id]
+                    
+               
     def parameters(self, model):
 
         model.add_component(
