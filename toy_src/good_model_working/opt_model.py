@@ -227,13 +227,13 @@ class Opt_Model:
 
 
                 export_terms = pyomo.quicksum(
-                    getattr(self.model, export_link + '_trans')[t] *  getattr(self.model, export_link + '_efficiency')
+                    getattr(self.model, f'{o}_{r}_trans' + '_trans')[t] *  getattr(self.model, f'{o}_{r}_trans' + '_efficiency')
                     for o in self.model.o 
                     if hasattr(self.model, f'{o}_{r}_trans')
                     )
         
                 import_terms = pyomo.quicksum(
-                    getattr(self.model, import_link + '_trans')[t]
+                    getattr(self.model, f'{r}_{p}_trans' + '_trans')[t]
                     for p in self.model.p 
                     if hasattr(self.model, f'{r}_{p}_trans')
                     )
