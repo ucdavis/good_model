@@ -6,9 +6,7 @@ class Generator:
         self.gen_cost = {}
         self.gen_capacity = {}
         self.fuel_type = []
-
-        print("Generating", generators)
-
+        
         for data in generators:
             for params in data.get('parameters',[]): 
 
@@ -40,65 +38,47 @@ class Generator:
 
     def parameters(self, model):
 
-        # cost_keys = [key for key in self.gen_cost.keys()]
-        # cap_keys = [key for key in self.gen_capacity.keys()]
+        model.add_component(
+            self.region_id + '_gencost', 
+            pyomo.Param(model.gen, initialize=self.gen_cost, within=pyomo.Reals)
+        )
 
-        # if cost_keys not in model.g: 
-
-        gencost = pyomo.Param(model.g_gf, initialize=self.gen_cost, within=pyomo.Reals)
-        setattr(model, self.region_id + '_gencost', gencost)
-
-        # if cap_keys not in model.g:
-
-        genMax = pyomo.Param(model.g_gf, initialize=self.gen_capacity, within=pyomo.Reals)
-        setattr(model, self.region_id + '_genMax', genMax)
-
-        return model
-
+        model.add_component(
+            self.region_id + '_genMax', 
+            pyomo.Param(model.gen, initialize=self.gen_capacity, within=pyomo.Reals)
+        )
 
     def variables(self, model):
 
-        if hasattr(model, self.region_id + '_gencost'):
-        
-            self.generation = pyomo.Var(model.g_gf, model.t, within=pyomo.NonNegativeReals)
-            setattr(model, self.region_id + '_generation', self.generation)
-
-            print('gen_vars')
-            print(self.region_id)
-
-        return model
+        model.add_component(
+            self.region_id + '_generation',
+            pyomo.Var(model.gen, model.t, domain=pyomo.NonNegativeReals)
+        )
 
     def objective(self, model):
 
         gen_cost_term = 0
 
-        if hasattr(model, self.region_id + '_generation'):
+        gen_indices = [g for g in model.gen if g in getattr(model, self.region_id + '_gencost')]
 
-            gen_cost_term = pyomo.quicksum(
-                getattr(model, self.region_id + '_generation')[g_gf,t] * getattr(model, self.region_id + '_gencost')[g_gf]
-                for g_gf in model.g_gf
-                for t in model.t)
+        gen_cost_term = pyomo.quicksum(
+            getattr(model, self.region_id + '_generation')[g,t] * getattr(model, self.region_id + '_gencost')[g]
+            for g in gen_indices
+            for t in model.t)
             
         return gen_cost_term
 
     def constraints(self, model):
-
-        if hasattr(model, self.region_id + '_generation'): 
             
-            generator_constraints = {}
-
-            for g_gf in model.g_gf:
-                for t in model.t:  
-                    gen_limits_rule = pyomo.ConstraintList()
-                    constraint_expr = (
-                        getattr(model, self.region_id + '_genMax')[g_gf] - getattr(model, self.region_id + '_generation')[g_gf, t]
-                        >= 0 
-                    )  
-
-                    gen_limits_rule.add(constraint_expr)                   
-                    generator_constraints.setdefault(g, {}).setdefault(gf, {})[t] = gen_limits_rule
-                        
-            setattr(model, self.region_id + '_gen_limits_rule', generator_constraints)
-
-        return model
+        def generator_constraints(model, g, t): 
+            if g in getattr(model, self.region_id + '_genMax'): 
+                return getattr(model, self.region_id + '_genMax')[g] - getattr(model, self.region_id + '_generation')[g, t] >= 0 
+            else: 
+                return pyomo.Constraint.Skip
+        
+        model.add_component(
+            self.region_id + '_gen_limits_rule', 
+            pyomo.Constraint(model.gen, model.t, rule=generator_constraints)
+        )
+    
 

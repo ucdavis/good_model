@@ -7,14 +7,20 @@ class Load:
 
         for data in load_data: 
 
-            self.load = data.get('value', {})
+            params = data.get('parameters',[])
+
+            for param in params: 
+
+                self.load = param.get('value', {})
 
         self.load = {int(key): value for key, value in self.load.items()}
 
     def parameters(self, model):
 
-        self.demandLoad = pyomo.Param(model.t, initialize=self.load, within=pyomo.Reals)
-        setattr(model, self.region_id + '_load', self.demandLoad)
+        model.add_component(
+            self.region_id + '_load', 
+            pyomo.Param(model.t, initialize=self.load, domain=pyomo.Reals)
+        )
 
         return model
 

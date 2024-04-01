@@ -13,50 +13,45 @@ class Transmission:
     
     def parameters(self, model):
 
-        trans_cost = pyomo.Param(initialize=self.cost, within=pyomo.NonNegativeReals)
-        setattr(model, self.trans_link + '_transCost', trans_cost)
+        model.add_component( 
+            self.trans_link + '_transCost', 
+            pyomo.Param(initialize=self.cost, within=pyomo.NonNegativeReals)
+        )
 
-        trans_caps = pyomo.Param(initialize=self.capacity, within=pyomo.NonNegativeReals)
-        setattr(model, self.trans_link + '_transCap', trans_caps)
-
-        trans_eff = pyomo.Param(initialize=self.efficiency, within=pyomo.NonNegativeReals)
-        setattr(model, self.trans_link + '_efficiency', trans_eff)
+        model.add_component(
+            self.trans_link + '_transCap', 
+            pyomo.Param(initialize=self.capacity, within=pyomo.NonNegativeReals)
+        ) 
+       
+        model.add_component(
+            self.trans_link + '_efficiency', 
+            pyomo.Param(initialize=self.efficiency, within=pyomo.NonNegativeReals)
+        )
 
     def variables(self, model):
-        
-        trans_var = pyomo.Var(model.t, within=pyomo.NonNegativeReals)
-        setattr(model, self.trans_link + '_trans', trans_var)
 
-        print('trans_vars')
-
-        return model
+        model.add_component(
+             self.trans_link + '_trans',
+             pyomo.Var(model.t, domain=pyomo.NonNegativeReals)
+        )
 
     def objective(self, model):
         # Simplify the objective function to accumulate transmission costs correctly
 
         tranmission_cost_term = 0
 
-        if hasattr(model, self.trans_link + '_trans'):
-
-            transmission_cost_term = pyomo.quicksum(
-                getattr(model, self.trans_link + '_trans')[t] * getattr(model, self.trans_link + '_transCost')
-                for t in model.t)
+        transmission_cost_term = pyomo.quicksum(
+            getattr(model, self.trans_link + '_trans')[t] * getattr(model, self.trans_link + '_transCost')
+            for t in model.t)
 
         return transmission_cost_term
 
     def constraints(self, model):
         
-        transmission_constraints = {}
+        def transmission_constraints(model, t): 
+            return getattr(model, self.trans_link + '_transCap') - getattr(model, self.trans_link + '_trans')[t] >= 0
         
-        for t in model.t:
-            trans_limits_rule = pyomo.ConstraintList()
-            constraint_expr = (
-                getattr(model, self.trans_link + '_transCap') - getattr(model, self.trans_link + '_trans')[t] 
-                >= 0
-            ) 
-            trans_limits_rule.add(constraint_expr)
-            transmission_constraints.setdefault(t, trans_limits_rule)
-
-        setattr(model, self.trans_link + '_trans_limit_rule', transmission_constraints)
-
-        return model
+        model.add_component(
+            self.trans_link + '_trans_limit_rule',
+            pyomo.Constraint(model.t, rule=transmission_constraints)
+        )
