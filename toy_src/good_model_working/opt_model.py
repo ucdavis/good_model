@@ -216,7 +216,7 @@ class Opt_Model:
 
                     
                 if hasattr(self.model, r + '_storCharge'):
-                    storage_terms = pyomo.quicksum(
+                    storage_terms = (
                         (getattr(self.model, r + '_storDischarge')[t] - getattr(self.model, r + '_storCharge')[t])
                         )
 
