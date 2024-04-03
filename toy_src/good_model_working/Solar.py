@@ -18,7 +18,7 @@ class Solar:
             if data_type == 'solar_cost': 
 
                 for params in parameters: 
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('cost', {})
 
                     if values: 
@@ -32,7 +32,7 @@ class Solar:
                 
                 for params in parameters: 
                     
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('max_capacity', {})
 
                     if values: 
@@ -50,7 +50,7 @@ class Solar:
             elif data_type == 'solar_gen':
                  
                  for params in parameters:
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('generation_profile', {})
 
                     if values: 
@@ -63,12 +63,12 @@ class Solar:
             elif data_type == 'solar_transmission_cost': 
                  
                  for params in parameters: 
-                    resource_id = params.get('resource_class', 0)
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('transmission_cost', {})
 
                     if values: 
                         for cost_class, info in values.items():
-                            index_key = (str(resource_id), cost_class)
+                            index_key = (resource_id, cost_class)
                             self.transmission_cost[index_key] = info
                     else: 
                         self.transmission_cost = {}
@@ -83,32 +83,32 @@ class Solar:
         if self.installed_capacity:
             model.add_component(
                 self.region_id + '_solarCap', 
-                pyomo.Param(initialize=self.installed_capacity, within=pyomo.Reals)
+                pyomo.Param(initialize=self.installed_capacity)
             )
 
        
         if self.max_capacity: 
             model.add_component(
                 self.region_id + '_solarMax', 
-                pyomo.Param(model.src, model.cc, initialize=self.max_capacity, within=pyomo.Reals)
+                pyomo.Param(model.src, model.cc, initialize=self.max_capacity)
             )
 
         if self.cost:
             model.add_component( 
                 self.region_id + '_solarCost', 
-                pyomo.Param(model.src, model.cc,  initialize=self.cost, within=pyomo.Reals)
+                pyomo.Param(model.src, model.cc,  initialize=self.cost)
             )
 
         if self.gen_profile: 
             model.add_component( 
-                self.region_id + '_solarprofile', 
-                pyomo.Param(model.src, model.t,initialize=self.gen_profile, within=pyomo.Reals)
+                self.region_id + '_solarGenProfile', 
+                pyomo.Param(model.src, model.t,initialize=self.gen_profile)
             )
 
         if self.transmission_cost:
             model.add_component( 
                 self.region_id + '_solarTransCost', 
-                pyomo.Param(model.src, model.cc, initialize=self.transmission_cost, within=pyomo.Reals)
+                pyomo.Param(model.src, model.cc, initialize=self.transmission_cost)
             )        
         
 
@@ -116,7 +116,8 @@ class Solar:
         # decision variables all indexed as, ex: model.x_solarNew[s,c]
 
         model.add_component(
-            self.region_id + '_solarNew', pyomo.Var(model.src, model.cc, domain=pyomo.NonNegativeReals)
+            self.region_id + '_solarNew', 
+            pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
 
 
@@ -125,12 +126,12 @@ class Solar:
 
         solar_cost_term = 0
 
-        if hasattr(model, self.region_id + '_solarTransCost'):
+        if hasattr(model, self.region_id + '_solarTransCost') and hasattr(model, self.region_id + '_solarCost'):
 
             solar_indices = [(s,c) for s in model.src for c in model.cc if (s,c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
                 (getattr(model, self.region_id + '_solarCost')[s,c] + getattr(model, self.region_id + '_solarTransCost')[s,c]) 
-                * getattr(model, self.region_id + '_solarNew')[s, c] 
+                * getattr(model, self.region_id + '_solarNew')[s,c] 
                 for (s,c) in solar_indices
             ) 
         
@@ -138,13 +139,13 @@ class Solar:
             
             solar_indices = [(s,c) for s in model.src for c in model.cc if (s,c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_solarCost')[s,c]) * getattr(model, self.region_id + '_solarNew')[s, c] 
+                (getattr(model, self.region_id + '_solarCost')[s,c]) * getattr(model, self.region_id + '_solarNew')[s,c] 
                 for (s,c) in solar_indices
             ) 
         
         else: 
 
-            solar_cost_term 
+            solar_cost_term = 0
 
         return solar_cost_term
 
@@ -154,12 +155,10 @@ class Solar:
         def solar_constraints(model, s, c): 
             
             if hasattr(model, self.region_id + '_solarMax'):
-
-                if (s, c) in getattr(model, self.region_id + '_solarMax'): 
-                    return getattr(model, self.region_id + '_solarMax')[s, c] - getattr(model, self.region_id + '_solarNew')[s, c] >= 0
+                if (s,c) in getattr(model, self.region_id + '_solarMax'):
+                    return getattr(model, self.region_id + '_solarMax')[s,c] - getattr(model, self.region_id + '_solarNew')[s,c] >= 0
                 else: 
                     return pyomo.Constraint.Skip
-            
             else: 
                 return pyomo.Constraint.Skip
         

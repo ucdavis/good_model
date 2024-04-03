@@ -42,17 +42,17 @@ class Storage:
 
         model.add_component(
             self.region_id + '_storSOC',
-            pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+            pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
 
         model.add_component(
             self.region_id + '_storCharge',
-            pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+            pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
         
         model.add_component(
             self.region_id + '_storDischarge', 
-            pyomo.Var(model.t, within=pyomo.NonNegativeReals)
+            pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
 
 
@@ -72,12 +72,14 @@ class Storage:
         )
         
         def storSOC_rule(model, t): 
+            
             if t == min(model.t):
                return getattr(model, self.region_id + '_storSOC')[t] == 0
         
             else:
                 t_1 = t - 1
-                return (getattr(model, self.region_id + '_storSOC')[t] - getattr(model, self.region_id + '_storSOC')[t_1] - getattr(model, self.region_id + '_storCharge')[t_1] * getattr(model, self.region_id + '_storEff')
+                return (getattr(model, self.region_id + '_storSOC')[t] - getattr(model, self.region_id + '_storSOC')[t_1] 
+                    - getattr(model, self.region_id + '_storCharge')[t_1] * getattr(model, self.region_id + '_storEff')
                     + getattr(model, self.region_id + '_storDischarge')[t_1]
                     == 0
                 )   

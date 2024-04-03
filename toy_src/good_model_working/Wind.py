@@ -11,13 +11,13 @@ class Wind:
 
         for data in wind_data:
 
-            data_type = data.get('data_tye', 0)
+            data_type = data.get('data_type', 0)
             parameters = data.get('parameters', [])
 
             if data_type == 'wind_cost': 
 
                 for params in parameters: 
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('cost', {})
 
                     if values:
@@ -31,7 +31,7 @@ class Wind:
                 
                 for params in parameters: 
                     
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('max_capacity', {})
 
                     if values: 
@@ -49,7 +49,7 @@ class Wind:
             elif data_type == 'wind_gen':
                 
                 for params in parameters:
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('generation_profile', {})
                     
                     if values: 
@@ -62,7 +62,7 @@ class Wind:
             elif data_type == 'wind_transmission_cost': 
                 
                 for params in parameters: 
-                    resource_id = str(params.get('resource_class', 0))
+                    resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('transmission_cost', {})
 
                     if values: 
@@ -71,7 +71,7 @@ class Wind:
                             self.transmission_cost[index] = info
                     else: 
                         self.transmission_cost= {}
-                        
+
     
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -82,46 +82,47 @@ class Wind:
         if self.installed_capacity:
             model.add_component(
                 self.region_id + '_windCap',
-                pyomo.Param(initialize=self.installed_capacity, within=pyomo.Reals)
+                pyomo.Param(initialize=self.installed_capacity)
             )
  
-        if self.gen_profile: 
-            model.add_component(
-                self.region_id + '_windgenprofile',
-                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, within=pyomo.Reals)
-            )
-      
         if self.max_capacity: 
             model.add_component(
                 self.region_id + '_windMax',
-                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, within=pyomo.Reals)
+                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity)
             )
         
         if self.cost: 
             model.add_component(
                 self.region_id + '_windCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.cost, within=pyomo.Reals)
+                pyomo.Param(model.wrc, model.cc, initialize=self.cost)
             )
   
         if self.transmission_cost: 
             model.add_component(
                 self.region_id + '_windTransCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, within=pyomo.Reals)
+                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost)
             )
 
+        if self.gen_profile: 
+            model.add_component(
+                self.region_id + '_windGenProfile',
+                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile)
+            )
+
+            
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_windNew[w,c]
 
         model.add_component(
             self.region_id + '_windNew', 
-            pyomo.Var(model.wrc, model.cc, domain=pyomo.NonNegativeReals)
+            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
 
     def objective(self, model):
         
         wind_cost_term = 0 
 
-        if hasattr(model, self.region_id + '_windTransCost'): 
+        if hasattr(model, self.region_id + '_windTransCost') and hasattr(model, self.region_id + '_windCost'): 
 
             wind_indices = [(w,c) for w in model.wrc for c in model.cc if (w,c) in getattr(model, self.region_id + '_windCost')]
             wind_cost_term = pyomo.quicksum(
@@ -140,7 +141,7 @@ class Wind:
 
         else:  
 
-            wind_cost_term
+            wind_cost_term = 0
 
         return wind_cost_term
 
@@ -149,15 +150,12 @@ class Wind:
         def wind_constraints(model, w, c): 
 
             if hasattr(model, self.region_id + '_windMax'):
-        
-                if (w, c) in getattr(model, self.region_id + '_windMax'): 
-                    return getattr(model, self.region_id + '_windMax')[w,c] - getattr(model, self.region_id + '_windNew')[w,c] >= 0 
+                if (w,c) in getattr(model, self.region_id + '_windMax'): 
+                    return getattr(model, self.region_id + '_windMax')[w,c] - getattr(model, self.region_id + '_windNew')[w,c] >= 0            
                 else: 
                     return pyomo.Constraint.Skip
-            
             else: 
                 return pyomo.Constraint.Skip
-
 
         model.add_component(
             self.region_id + '_wind_install_limits', 

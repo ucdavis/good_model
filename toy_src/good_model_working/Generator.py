@@ -33,19 +33,19 @@ class Generator:
 
         model.add_component(
             self.region_id + '_gencost', 
-            pyomo.Param(model.gen, initialize=self.gen_cost, within=pyomo.Reals)
+            pyomo.Param(model.gen, initialize=self.gen_cost)
         )
 
         model.add_component(
             self.region_id + '_genMax', 
-            pyomo.Param(model.gen, initialize=self.gen_capacity, within=pyomo.Reals)
+            pyomo.Param(model.gen, initialize=self.gen_capacity)
         )
 
     def variables(self, model):
 
         model.add_component(
             self.region_id + '_generation',
-            pyomo.Var(model.gen, model.t, domain=pyomo.NonNegativeReals)
+            pyomo.Var(model.gen, model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
 
     def objective(self, model):
@@ -65,7 +65,7 @@ class Generator:
             
         def generator_constraints(model, g, t): 
             if g in getattr(model, self.region_id + '_genMax'): 
-                return getattr(model, self.region_id + '_genMax')[g] - getattr(model, self.region_id + '_generation')[g, t] >= 0 
+                return getattr(model, self.region_id + '_genMax')[g] - getattr(model, self.region_id + '_generation')[g,t] >= 0 
             else: 
                 return pyomo.Constraint.Skip
         

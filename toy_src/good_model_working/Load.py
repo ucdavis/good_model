@@ -19,7 +19,7 @@ class Load:
 
         model.add_component(
             self.region_id + '_load', 
-            pyomo.Param(model.t, initialize=self.load, domain=pyomo.Reals)
+            pyomo.Param(model.t, initialize=self.load)
         )
 
         return model
