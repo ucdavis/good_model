@@ -644,6 +644,7 @@ def wind_object(df1, df2, df3, df4, Plants_group, Region):
         trans_cost_df = df4[df4['IPM Region'] == region_name]
 
         # Add wind generation profile data
+        gen_profile_df['New Resource Class'] = gen_profile_df['New Resource Class'].fillna('1')
         wind_gen_params = {'data_type': 'wind_gen', 'parameters': []}
         for index, row in gen_profile_df.iterrows():
             gen_profile = row.drop(['IPM Region', 'Resource Class', 'State', "New Resource Class"]).dropna().to_dict()

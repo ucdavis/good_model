@@ -43,7 +43,7 @@ Wind_trans_capital_cost_final, Solar_trans_capital_cost_photov_final, Wind_capit
 # %%
 # Make a copy of the DataFrame
 Region = Load['Region'].unique()
-transmision_oo = trans_object(Transmission_Capacity, Transmission_Cost)
+links = trans_object(Transmission_Capacity, Transmission_Cost)
 load_oo = load_object(Load_wide)
 generator_oo = gen_object(Plants_group)
 storage_oo = storage_object(Plants_group)
@@ -98,10 +98,6 @@ all_dicts = load_oo + generator_oo + storage_oo + solar_oo + wind_oo
 
 # Merge all dictionaries in the list
 nodes = merge_dictionaries_and_format(all_dicts)
-
-#drop all source_target relationships with 0 capacity
-if isinstance(transmision_oo, list) and all(isinstance(d, dict) for d in transmision_oo):
-    links = [d for d in transmision_oo if d.get('capacity', 0) != 0]
 
 # Create a dictionary to hold all objects
 all_objects = {
