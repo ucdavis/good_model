@@ -15,24 +15,24 @@ class Transmission:
 
         model.add_component( 
             self.trans_link + '_transCost', 
-            pyomo.Param(initialize=self.cost, within=pyomo.NonNegativeReals)
+            pyomo.Param(initialize=self.cost)
         )
 
         model.add_component(
             self.trans_link + '_transCap', 
-            pyomo.Param(initialize=self.capacity, within=pyomo.NonNegativeReals)
+            pyomo.Param(initialize=self.capacity)
         ) 
        
         model.add_component(
             self.trans_link + '_efficiency', 
-            pyomo.Param(initialize=self.efficiency, within=pyomo.NonNegativeReals)
+            pyomo.Param(initialize=self.efficiency)
         )
 
     def variables(self, model):
 
         model.add_component(
              self.trans_link + '_trans',
-             pyomo.Var(model.t, domain=pyomo.NonNegativeReals)
+             pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
         )
 
     def objective(self, model):
