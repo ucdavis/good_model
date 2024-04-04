@@ -466,7 +466,7 @@ def load_object(df):
 
 def gen_object(df):
     gen_example = []  # List to store generator data in the desired format
-    df = df[~df["PlantType"].isin(["Energy Storage", "Solar PV", "Onshore Wind"])]  # Remove unwanted plant types
+    df = df[~df["PlantType"].isin(["Energy Storage", "New Battery Storage",  "Solar PV", "Onshore Wind"])]  # Remove unwanted plant types
     for index, row in df.iterrows():
         region_name = row.iloc[0]  # First column contains the region name
         plant_type = row.iloc[1]
@@ -527,7 +527,7 @@ def gen_object(df):
 
 
 def storage_object(df):
-    df = df[df["PlantType"] == "Energy Storage"]
+    df = df[df["PlantType"].isin(["New Battery Storage", "Energy Storage"])]
     stor_example = []  # List to store load data in the desired format
 
     # Iterate through each row of the dataframe
