@@ -57,5 +57,19 @@ class RegionNode():
             for obj in obj_list:
             
                obj.constraints(model)
+
+    def results(self, model, results): 
+
+        results = {}
+
+        for key, obj_list in self.region_objects.items(): 
+
+            for obj in obj_list:
+            
+               results[key] = obj.results(model, results)
+
+        return results
+
+
         
         

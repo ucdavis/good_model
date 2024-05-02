@@ -3,31 +3,35 @@ from .constants import time_periods
 from .RegionNode import RegionNode
 from .Transmission import Transmission
 from pyomo.common.timing import TicTocTimer
-import logging
 import highspy
-import cProfile
+import time
 
 
 class Opt_Model:
-    def __init__(self, graph, sets, enable_logging=False):
-        self.graph = graph
-        self.sets = sets
-        self.time_periods = time_periods
+    def __init__(self, model_data):
+        
+        self.sets = model_data.get('sets', {})
+        self.graph = model_data.get('graph', {})
         self.region_list = self.sets.get('region', [])
+        self.time_periods = time_periods
         self.solar_ids = self.sets.get('solar_rc', [])
         self.wind_ids = self.sets.get('wind_rc', [])
         self.cost_class_ids = self.sets.get('cost_class', [])
         self.gen_type = self.sets.get('gen_type', [])
-        
+
+        self.test_nodes = model_data.get('test_nodes', '')
+        if self.test_nodes: 
+            self.graph = model_data.get('subgraph', {})
+            self.region_list = model_data.get('subgraph_nodes', [])
+            
+        self.test_cons = model_data.get('test_cons', '')
+        if self.test_cons:     
+            self.cons_deactivate = model_data.get('contraint_deactivation', [])   
+
         # Check for non-empty graph and periods, then build
         if self.graph and self.time_periods and self.sets:
             self.model = pyomo.ConcreteModel()
             self.build()
-
-            if enable_logging:
-                pyomo_logger = logging.getLogger('pyomo.core')
-                pyomo_logger.setLevel(logging.ERROR)
-
 
     def build(self):
         self.timer = TicTocTimer()
@@ -38,10 +42,12 @@ class Opt_Model:
         self.build_model()
         self.timer.toc('Model built')
 
-        # self.timer.toc('Model solving...')
-        # self.solve_model()
-        # self.timer.toc('Model solved')
+        self.timer.toc('Model solving...')
+        self.solve_model()
+        self.timer.toc('Model solved')
 
+        self.gather_results()
+        
     def build_grid(self):
 
         for region_id, region_data in self.graph._node.items():  
@@ -110,9 +116,9 @@ class Opt_Model:
 
 
     def build_objective(self):
-        
+
         objective_function = 0
-    
+            
         for region_id, region_data in self.graph._node.items(): 
 
             objective_function += region_data['object'].objective(self.model)
@@ -137,6 +143,10 @@ class Opt_Model:
         self.region_balancing_constraint()
         self.timer.toc("Balancing constraint built")
 
+        if self.test_cons:
+            self.constraint_deactivation()
+            print('Constraint deactivation called')
+
     def local_constraints(self): 
 
         for region_id, region_data in self.graph._node.items(): 
@@ -155,65 +165,74 @@ class Opt_Model:
 
         self.model.energy_balancing_rule = pyomo.ConstraintList()
 
-        for r in self.model.r:
-            self.timer.toc(f'{r} energy balancing constraint starting...')
-            solar_indices = [s for s, _ in getattr(self.model, r + '_solarGenProfile')]
-            wind_indices = [w for w, _ in getattr(self.model, r + '_windGenProfile')]
+        for r in self.model.r: 
 
-            for t in self.model.t:
-                generation_terms = 0
-                if hasattr(self.model, r + '_generation'):
-                    for g in self.model.gen:
-                        generation_terms += getattr(self.model, r + '_generation')[g, t]
+            c_solar_cap = getattr(self.model, r + '_solarCap', 0)
+            c_solar_profile = getattr(self.model, r + '_solarGenProfile', 0)
+            x_solar_var = getattr(self.model, r + '_solarNew', None)
+            
+            solar_indices = None
+            if c_solar_profile != 0:
+                solar_indices = set([s for s,_ in c_solar_profile])
+            
+            c_wind_cap = getattr(self.model, r + '_windCap', 0)
+            c_wind_profile = getattr(self.model, r + '_windGenProfile', 0)
+            x_wind_var = getattr(self.model, r + '_windNew', None)
+            
+            wind_indices = None
+            if c_wind_profile != 0: 
+                wind_indices = set([w for w, _ in c_wind_profile])
+        
+            x_stor_in = getattr(self.model, r + '_storCharge', None)
+            x_stor_out = getattr(self.model, r + '_storDischarge', None)
 
+            c_load = getattr(self.model, r + '_load', None)
+            x_generation_var = getattr(self.model, r + '_generation', None)
+            
+            for t in self.model.t: 
 
                 solar_terms = 0
-                if hasattr(self.model, r + '_solarGenProfile') and hasattr(self.model, r + '_solarCap'):
-                    solar_cap = getattr(self.model, r + '_solarCap')
-                    for s in solar_indices:
-                        for c in self.model.cc:
-                            solar_terms += ((solar_cap + getattr(self.model, r + '_solarNew')[s, c]) 
-                                * getattr(self.model, r + '_solarGenProfile')[s, t]
-                            )
-
-                elif hasattr(self.model, r + '_solarGenProfile'):
-                    for s in solar_indices:
-                        for c in self.model.cc:
-                            solar_terms += (getattr(self.model, r + '_solarNew')[s, c] 
-                                * getattr(self.model, r + '_solarGenProfile')[s, t]
-                            )
-
-
-                wind_terms = 0
-                if hasattr(self.model, r + '_windGenProfile') and hasattr(self.model, r + '_windCap'):
-                    wind_cap = getattr(self.model, r + '_windCap')
-                    for w in wind_indices:
-                        for c in self.model.cc:
-                            wind_terms += ((wind_cap + getattr(self.model, r + '_windNew')[w, c]) 
-                                * getattr(self.model, r + '_windGenProfile')[w, t]
-                            )
-
-                elif hasattr(self.model, r + '_windGenProfile'):
-                    for w in wind_indices:
-                        for c in self.model.cc:
-                            wind_terms += (getattr(self.model, r + '_windNew')[w, c] 
-                                * getattr(self.model, r + '_windGenProfile')[w, t]
-                            )
+                if solar_indices is not None: 
+                    solar_terms = pyomo.quicksum(
+                        ((c_solar_cap[s,c] + x_solar_var[s, c]) * c_solar_profile[s, t])
+                        for s in solar_indices
+                        for c in self.model.cc
+                    )
+            
+                wind_terms = 0 
+                if wind_indices is not None: 
+                    wind_terms = pyomo.quicksum(
+                        ((c_wind_cap[w,c] + x_wind_var[w, c]) * c_wind_profile[w, t])
+                        for w in wind_indices
+                        for c in self.model.cc
+                    )
 
 
+                generation_terms = 0 
+                if x_generation_var is not None: 
+                    generation_terms = pyomo.quicksum(
+                        x_generation_var[g, t]
+                        for g in self.model.gen
+                    )
+                else: 
+                    generation_terms = 0
+                
                 storage_terms = 0
-                if hasattr(self.model, r + '_storCap'):
-                    storage_terms = getattr(self.model, r + '_storDischarge')[t] - getattr(self.model, r + '_storCharge')[t]
+                if x_stor_out is not None: 
+                    storage_terms = (x_stor_out[t] - x_stor_in[t])
 
                 demand_terms = 0
-                if hasattr(self.model, r + '_load'):
-                    demand_terms = getattr(self.model, r + '_load')[t]
-
+                if c_load is not None:
+                    demand_terms = (c_load[t])
+                else: 
+                    demand_terms = 0
+                    
+                    
                 export_terms = 0
                 for o in self.model.o:
                     export_link = f'{o}_{r}'
                     if hasattr(self.model, export_link + '_trans'):
-                        export_terms += (getattr(self.model, export_link + '_trans')[t] 
+                        export_terms = (getattr(self.model, export_link + '_trans')[t] 
                             * getattr(self.model, export_link + '_efficiency')
                         )
 
@@ -222,23 +241,80 @@ class Opt_Model:
                     import_link = f'{r}_{p}'
                     if hasattr(self.model, import_link + '_trans'):
                         import_terms = getattr(self.model, import_link + '_trans')[t]
-
-                self.model.energy_balancing_rule.add(
-                    generation_terms
-                    + solar_terms
-                    + wind_terms
-                    + storage_terms
+                
+                cons_expr =  (
+                    solar_terms 
+                    + wind_terms 
+                    + storage_terms 
+                    + generation_terms 
                     + import_terms
                     - export_terms
                     - demand_terms
                     >= 0
                 )
 
-            self.timer.toc(f'{r} balancing constraint built')
+                self.model.energy_balancing_rule.add(
+                   cons_expr
+                )
 
+    def constraint_deactivation(self): 
+
+        for constraint in self.cons_deactivate: 
+            if constraint == 'storage':
+                for r in self.model.r: 
+                    x_stor_in = getattr(self.model, r + '_storCharge', None)
+                    if x_stor_in is not None: 
+                        getattr(self.model, r + '_storage_SOC_rule').deactivate()
+                        getattr(self.model, r + '_stor_charge_rule').deactivate()
+                        getattr(self.model, r + '_stor_discharge_rule').deactivate()
+                        getattr(self.model, r + '_storage_capacity_rule').deactivate()
+
+            print(f'{constraint} constraints deactivated')
+
+            if constraint == 'solar':
+                for r in self.model.r: 
+                    solar_max = getattr(self.model, r + '_solarMax', None)
+                    if solar_max is not None: 
+                        getattr(self.model, r + '_solar_install_limits').deactivate()
+
+            print(f'{constraint} constraints deactivated')
+            
+            if constraint == 'wind':
+                for r in self.model.r: 
+                    wind_max = getattr(self.model, r + '_windrMax', None)
+                    if wind_max is not None: 
+                        getattr(self.model, r + '_wind_install_limits').deactivate()
+
+            print(f'{constraint} constraints deactivated')
+            
+            if constraint == 'generator':
+                for r in self.model.r: 
+                    gen_max = getattr(self.model, r + '_genMax', None)
+                    if gen_max is not None: 
+                        getattr(self.model, r + '_gen_limits_rule').deactivate()
+        
+            print(f'{constraint} constraints deactivated')
+            
     def solve_model(self, solver_name="appsi_highs"):
         
         solver = pyomo.SolverFactory(solver_name)
-        solution = solver.solve(self.model, tee=True)
-        
-        return solution
+        self.results = solver.solve(self.model, tee=True)
+
+    def gather_results(self): 
+
+        self.results = {
+            'transmission': {}, 
+            'objects': {}
+        }
+
+        for region_id, region_data in self.graph._node.items():
+            
+            self.results['objects'][region_id] = region_data['object'].results(self.model, self.results)
+
+        for source, adjacency in self.graph._adj.items():
+
+            for target, link in adjacency.items():
+
+               self.results['transmission'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
+               
+        return self.results

@@ -19,7 +19,7 @@ class Storage:
 
         model.add_component(
             self.region_id + '_storCap',
-            pyomo.Param(initialize=self.storage_capacity)
+            pyomo.Param(initialize=self.storage_capacity, default= 0)
         )
 
         model.add_component(
@@ -42,17 +42,17 @@ class Storage:
 
         model.add_component(
             self.region_id + '_storSOC',
-            pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
+            pyomo.Var(model.t, within=pyomo.NonNegativeReals)
         )
 
         model.add_component(
             self.region_id + '_storCharge',
-            pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
+            pyomo.Var(model.t, within=pyomo.NonNegativeReals)
         )
         
         model.add_component(
             self.region_id + '_storDischarge', 
-            pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
+            pyomo.Var(model.t, within=pyomo.NonNegativeReals)
         )
 
 
@@ -111,5 +111,33 @@ class Storage:
             self.region_id + '_stor_discharge_rule',
             pyomo.Constraint(model.t, rule=storDischarge_rule)
         )
-        
 
+    def results(self, model, results): 
+
+        results = {self.region_id: {}}
+
+        dict_SOC = {}
+        dict_Charge = {}
+        dict_Discharge = {}
+
+        if hasattr(model, self.region_id + '_storSOC'): 
+            storSOC = getattr(model, self.region_id + '_storSOC').extract_values()
+            storCharge = getattr(model, self.region_id + '_storCharge').extract_values()
+            storDischarge = getattr(model, self.region_id + '_storDischarge').extract_values()
+
+            for key, value in storSOC.items(): 
+
+
+                dict_SOC[key] = value
+                dict_Charge[key] = storCharge[key]
+                dict_Discharge[key] = storDischarge[key]
+
+        
+        results[self.region_id] = {
+            'type': 'storage',
+            'storSOC': dict_SOC, 
+            'storCharge': dict_Charge, 
+            'storDischarge': dict_Discharge
+            }
+
+        return results

@@ -1,4 +1,5 @@
 import pyomo.environ as pyomo
+from .constants import time_periods
 
 class Wind:
     def __init__(self, region_id, wind_data):
@@ -8,6 +9,9 @@ class Wind:
         self.max_capacity = {}
         self.cost = {}
         self.transmission_cost = {}
+        self.resource_id_profile = []
+        self.time_periods = time_periods
+        self.cost_class_ids = []
 
         for data in wind_data:
 
@@ -36,6 +40,7 @@ class Wind:
 
                     if values: 
                         for cost_class, info in values.items():
+                            self.cost_class_ids.append(cost_class)
                             index = (resource_id, cost_class)
                             self.max_capacity[index] = info
                     else: 
@@ -50,12 +55,17 @@ class Wind:
                 
                 for params in parameters:
                     resource_id = str(int(params.get('resource_class', 0)))
+                    self.resource_id_profile.append(resource_id)
                     values = params.get('generation_profile', {})
                     
                     if values: 
+                        max_load = max(values.values())
                         for hour, load in values.items():
+                            # hour = int(hour)
+                            # if hour in self.time_periods:
                             index_key = (resource_id, int(hour))
-                            self.gen_profile[index_key] = load
+                            normalized_load = load/ max_load
+                            self.gen_profile[index_key] = normalized_load
                     else:
                         self.gen_profile = {}
 
@@ -72,7 +82,15 @@ class Wind:
                     else: 
                         self.transmission_cost= {}
 
-    
+        if self.installed_capacity is not None: 
+            if self.resource_id_profile:
+                capacity = {(i,j): 0 for i in self.resource_id_profile for j in self.cost_class_ids}
+                first_key = next(iter(capacity))
+                capacity[first_key] = self.installed_capacity
+                self.installed_capacity = capacity
+
+        # self.gen_profile= {(s, h): value for (s,h), value in self.gen_profile.items() if h <= 8760}
+
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
         # if the data is: 
@@ -82,31 +100,31 @@ class Wind:
         if self.installed_capacity:
             model.add_component(
                 self.region_id + '_windCap',
-                pyomo.Param(initialize=self.installed_capacity)
+                pyomo.Param(model.wrc, model.cc, initialize=self.installed_capacity, default=0)
             )
  
         if self.max_capacity: 
             model.add_component(
                 self.region_id + '_windMax',
-                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity)
+                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, default=0)
             )
         
         if self.cost: 
             model.add_component(
                 self.region_id + '_windCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.cost)
+                pyomo.Param(model.wrc, model.cc, initialize=self.cost, default=0)
             )
   
         if self.transmission_cost: 
             model.add_component(
                 self.region_id + '_windTransCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost)
+                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, default=0)
             )
 
         if self.gen_profile: 
             model.add_component(
                 self.region_id + '_windGenProfile',
-                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile)
+                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, default=0)
             )
 
             
@@ -115,7 +133,7 @@ class Wind:
 
         model.add_component(
             self.region_id + '_windNew', 
-            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds= (None, None))
+            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds = (1e-08, None))
         )
 
     def objective(self, model):
@@ -162,3 +180,43 @@ class Wind:
             pyomo.Constraint(model.wrc, model.cc, rule = wind_constraints)
         )
 
+    def results(self, model, results): 
+
+        results = {self.region_id: {}}
+        
+        capacity_dict = {}
+        cost_dict ={}
+
+        trans_var = getattr(model, self.region_id + '_windTransCost',0)
+
+        if hasattr(model, self.region_id + '_windrNew'): 
+            capacity_var = getattr(model, self.region_id + '_windNew').extract_values()
+            
+            for key, value in capacity_var.items(): 
+                
+                if key not in capacity_dict: 
+                    capacity_dict[key] = {}
+
+                else: 
+                    capacity_dict[key] =  value
+    
+
+        if hasattr(model, self.region_id + '_windcost'): 
+            cost_var = getattr(model, self.region_id + '_windcost').extract_values()
+            trans_cost = trans_var.extract_values()
+
+            for key, value in cost_var.items(): 
+
+                if key not in capacity_dict: 
+                    capacity_cost[key] = {}
+
+                else: 
+                    capacity_cost[key] +=  capacity_dict[key] * (value + trans_cost[key])
+
+        results[self.region_id] = {
+            'type': 'wind',
+            'capacity': capacity_dict,
+            'cost': cost_dict,
+            }
+
+        return results

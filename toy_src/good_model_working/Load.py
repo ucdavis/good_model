@@ -14,15 +14,14 @@ class Load:
                 self.load = param.get('value', {})
 
         self.load = {int(key): value for key, value in self.load.items()}
+        # self.load = {key: value for key, value in self.load.items() if key <= 8760}
 
     def parameters(self, model):
 
         model.add_component(
             self.region_id + '_load', 
-            pyomo.Param(model.t, initialize=self.load)
+            pyomo.Param(model.t, initialize=self.load, default=0)
         )
-
-        return model
 
     def variables(self, model): 
         
@@ -35,4 +34,8 @@ class Load:
     def constraints(self, model): 
         
         return model
+
+    def results(self, model, results): 
+        
+        return 0
 

@@ -32,7 +32,7 @@ class Transmission:
 
         model.add_component(
              self.trans_link + '_trans',
-             pyomo.Var(model.t, within=pyomo.NonNegativeReals, bounds= (None, None))
+             pyomo.Var(model.t, within=pyomo.NonNegativeReals)
         )
 
     def objective(self, model):
@@ -55,3 +55,27 @@ class Transmission:
             self.trans_link + '_trans_limit_rule',
             pyomo.Constraint(model.t, rule=transmission_constraints)
         )
+
+    def results(self, model, results): 
+
+        results = {}
+        
+        trans_capacity = getattr(model, self.trans_link + '_trans').extract_values()
+        trans_cost = list(getattr(model, self.trans_link + '_transCost').extract_values().values())[0]
+    
+        cost_dict = 0
+        capacity_dict = {}
+
+        for key, value in trans_capacity.items(): 
+            capacity_dict[key] = value
+            # if self.trans_link not in cost_dict:
+            #     cost_dict[self.trans_link] = 0  
+            cost_dict += trans_cost * value
+
+        results = {
+            'type': 'transmission',
+            'cost': cost_dict, 
+            'capacity': capacity_dict
+            }
+
+        return results 
