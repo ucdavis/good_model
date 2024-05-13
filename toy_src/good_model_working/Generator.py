@@ -45,9 +45,9 @@ class Generator:
 
         self.gen_cost = {key: value for key, value in self.gen_cost.items() if not any(substring in key for substring in gen_to_remove)}
         self.gen_capacity = {key: value for key, value in self.gen_capacity.items() if not any(substring in key for substring in gen_to_remove)}
-        for key, capacity in self.gen_capacity.items(): 
-            if 'Hydro' in key: 
-                self.gen_capacity[key] =  capacity/2
+        # for key, capacity in self.gen_capacity.items(): 
+        #     # if 'Hydro' in key: 
+        #     #     self.gen_capacity[key] = capacity/2
         for key, cost in self.gen_capacity.items(): 
             if 'Hydro' in key: 
                 self.gen_cost[key] = 40
@@ -107,7 +107,7 @@ class Generator:
     
     def results(self, model, results):
         
-        results = {self.region_id: {}}
+        results = {}
 
         region_cost= {}
         region_capacity = {}
@@ -138,8 +138,7 @@ class Generator:
                     region_cost[gen_type] = cost * capacity
     
 
-        results[self.region_id] = {
-            'type': 'generation',
+        results = {
             'cost': region_cost, 
             'capacity': region_capacity
             }

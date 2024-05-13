@@ -114,7 +114,7 @@ class Storage:
 
     def results(self, model, results): 
 
-        results = {self.region_id: {}}
+        results = {}
 
         dict_SOC = {}
         dict_Charge = {}
@@ -133,7 +133,7 @@ class Storage:
                 dict_Discharge[key] = storDischarge[key]
 
         
-        results[self.region_id] = {
+        results = {
             'type': 'storage',
             'storSOC': dict_SOC, 
             'storCharge': dict_Charge, 

@@ -19,7 +19,7 @@ class Opt_Model:
         self.cost_class_ids = self.sets.get('cost_class', [])
         self.gen_type = self.sets.get('gen_type', [])
 
-        self.test_nodes = model_data.get('test_nodes', '')
+        self.test_nodes = model_data.get('test_nodes', False)
         if self.test_nodes: 
             self.graph = model_data.get('subgraph', {})
             self.region_list = model_data.get('subgraph_nodes', [])
@@ -46,7 +46,7 @@ class Opt_Model:
         self.solve_model()
         self.timer.toc('Model solved')
 
-        self.gather_results()
+        self.get_results()
         
     def build_grid(self):
 
@@ -214,8 +214,7 @@ class Opt_Model:
                         x_generation_var[g, t]
                         for g in self.model.gen
                     )
-                else: 
-                    generation_terms = 0
+
                 
                 storage_terms = 0
                 if x_stor_out is not None: 
@@ -224,10 +223,7 @@ class Opt_Model:
                 demand_terms = 0
                 if c_load is not None:
                     demand_terms = (c_load[t])
-                else: 
-                    demand_terms = 0
-                    
-                    
+
                 export_terms = 0
                 for o in self.model.o:
                     export_link = f'{o}_{r}'
@@ -300,21 +296,21 @@ class Opt_Model:
         solver = pyomo.SolverFactory(solver_name)
         self.results = solver.solve(self.model, tee=True)
 
-    def gather_results(self): 
+    def get_results(self): 
 
         self.results = {
-            'transmission': {}, 
-            'objects': {}
+            'links': {}, 
+            'nodes': {}
         }
 
         for region_id, region_data in self.graph._node.items():
             
-            self.results['objects'][region_id] = region_data['object'].results(self.model, self.results)
+            self.results['nodes'][region_id] = region_data['object'].results(self.model, self.results)
 
         for source, adjacency in self.graph._adj.items():
 
             for target, link in adjacency.items():
 
-               self.results['transmission'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
+               self.results['links'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
                
         return self.results

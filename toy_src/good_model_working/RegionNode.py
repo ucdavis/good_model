@@ -1,5 +1,6 @@
 from .class_mapping import class_dict_for_region
 
+
 class RegionNode():
 
     def __init__(self, key, **node_data): 
@@ -20,7 +21,6 @@ class RegionNode():
                 if str(class_name) not in class_dict_for_region:
                     self.region_objects[str(class_name)] = []
                 self.region_objects[str(class_name)].append(class_name(self.region_id, param))
-
 
     def parameters(self, model): 
         
@@ -62,11 +62,18 @@ class RegionNode():
 
         results = {}
 
-        for key, obj_list in self.region_objects.items(): 
+        class_dict_keys = list(class_dict_for_region.keys())
+
+        for obj_class, obj_list in self.region_objects.items():
+            
+            str_obj_class = str(obj_class).lower()
+
+            start_idx = str_obj_class.rfind('.') + 1
+            end_idx = str_obj_class.rfind("'>")
+            key = str_obj_class[start_idx:end_idx]
 
             for obj in obj_list:
-            
-               results[key] = obj.results(model, results)
+                results[key] = obj.results(model, results)
 
         return results
 

@@ -1,9 +1,11 @@
 import pyomo.environ as pyomo
+from .constants import time_periods
 
 
 class Load:
     def __init__(self, region_id, load_data):
         self.region_id = region_id
+        self.time_periods = time_periods
 
         for data in load_data: 
 
@@ -14,7 +16,7 @@ class Load:
                 self.load = param.get('value', {})
 
         self.load = {int(key): value for key, value in self.load.items()}
-        # self.load = {key: value for key, value in self.load.items() if key <= 8760}
+        self.load = {key: value for key, value in self.load.items() if key <= max(self.time_periods)}
 
     def parameters(self, model):
 

@@ -59,14 +59,16 @@ class Solar:
                     self.resource_id_profile.append(resource_id)
                     values = params.get('generation_profile', {})
 
-                    if values: 
+                    
+                    if values:
                         max_load = max(values.values())
-                        for hour, load in values.items():
-                            # hour = int(hour)
-                            # if hour in self.time_periods:
-                            index_key = (resource_id, int(hour))
-                            normalized_load = load/ max_load
-                            self.gen_profile[index_key] = normalized_load
+                        if max(self.time_periods) != 4380: 
+                            self.gen_profile.update({(resource_id, int(hour)): load / max_load
+                                for hour, load in values.items()
+                                if int(hour) in self.time_periods})
+                        else:
+                            self.gen_profile.update({(resource_id, int(hour)): load / max_load
+                                for hour, load in values.items()})
                     else:
                         self.gen_profile = {}
 
@@ -186,7 +188,7 @@ class Solar:
 
     def results(self, model, results): 
 
-        results = {self.region_id: {}}
+        results = {}
         
         capacity_dict = {}
         cost_dict ={}
@@ -217,8 +219,7 @@ class Solar:
                 else: 
                     capacity_cost[key] +=  capacity_dict[key] * (value + trans_cost[key])
 
-        results[self.region_id] = {
-            'type': 'solar',
+        results = {
             'capacity': capacity_dict,
             'cost': cost_dict
             }
