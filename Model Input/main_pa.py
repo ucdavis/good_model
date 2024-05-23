@@ -1,6 +1,6 @@
 # %%
 import os
-from reading_file_pa import load_data
+from reading_file import load_data
 from merging_file_pa import (merging_data, assign_fuel_costs, fill_missing_fuel_costs, assign_em_rates, long_wide, transmission_func,
                           ffill_ren_cost, ffill_ren_cap, cluster_and_aggregate, long_wide_load, load_dic, wind_cap_dic, wind_cost_dic, solar_cap_dic,
                           solar_cost_dic, storage_object, solar_object, wind_object, gen_object, load_object, trans_object, transmission_dic1, cp_dic, plant_dic, plant_capacity, trans_index, renewable_transmission_cost)
@@ -13,8 +13,6 @@ import numpy as np
 Plant_short = merging_data(Plant, Parsed)
 # Assigning fuel cost
 Plant_short = assign_fuel_costs(Plant_short)
-# Replacing missing fuel cost
-Plant_short = fill_missing_fuel_costs(Plant_short, Transmission)
 # Replacing missing fuel cost
 Plant_short = assign_em_rates(Plant_short)
 # Aggregating the power plants

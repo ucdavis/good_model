@@ -44,30 +44,49 @@ def map_fuel_type(row_input):
 
 # Create a function to assign fuel costs
 def assign_fuel_costs(input_df):
-    merged_short = input_df[["RegionName", "StateName", "CountyName", "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FuelCostTotal", "VOMCostTotal",
-                           "UTLSRVNM", "NERC", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]]
+    selected_columns = ["RegionName", "StateName", "CountyName", "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls",
+                        "FuelCostTotal", "VOMCostTotal", "UTLSRVNM", "NERC", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL",
+                        "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
+    merged_short = input_df[selected_columns].copy()
 
-    # Apply the function to the DataFrame to create a new column 'MappedFuelType'
-    merged_short.loc[:, "FuelType"] = merged_short.apply(map_fuel_type, axis=1).copy()
-    merged_short = merged_short.loc[~((merged_short["FuelType"].isna()) & (merged_short["PlantType"] != "IMPORT"))].reset_index(drop=True)
-    # Return the loaded dataframes
+    merged_short["FuelType"] = merged_short.apply(map_fuel_type, axis=1)
+    merged_short = merged_short[~(merged_short["FuelType"].isna() & (merged_short["PlantType"] != "IMPORT"))].reset_index(drop=True)
 
-    for r in range(len(merged_short)):
-        if (merged_short.loc[r, 'FossilUnit'] == 'Fossil') and (merged_short.loc[r, 'FuelCostTotal'] == 0):
-            fuel_type_missing = merged_short.loc[r, 'FuelType']
-            ipm_region = merged_short.loc[r, 'RegionName']
-            mean_fuel_cost = merged_short[(merged_short['FuelType'] == fuel_type_missing) & (merged_short['RegionName'] == ipm_region)]['FuelCostTotal'].mean()
-            merged_short.at[r, 'FuelCostTotal'] = mean_fuel_cost
+    for idx, row in merged_short.iterrows():
+        fuel_type = row['FuelType']
+        region = row['RegionName']
 
-            if (merged_short.loc[r, 'FossilUnit'] == 'Fossil') and (merged_short.loc[r, 'FuelCostTotal'] == 0):
-                fuel_type_missing = merged_short.loc[r, 'FuelType']
-                ipm_state = merged_short.loc[r, 'StateName']
-                mean_fuel_cost = merged_short[(merged_short['FuelType'] == fuel_type_missing) & (merged_short['StateName'] == ipm_state)]['FuelCostTotal'].mean()
-                merged_short.at[r, 'FuelCostTotal'] = mean_fuel_cost
+        # Exclude zeros in fuel cost calculations
+        region_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['RegionName'] == region)]['FuelCostTotal']
+        region_fuel_costs_non_zero = region_fuel_costs[region_fuel_costs > 0]
 
-    merged_short.loc[merged_short["FuelType"] == "Hydro", "FuelCostTotal"] = 0
-    merged_short.loc[merged_short["FuelType"] == "Pumps", "FuelCostTotal"] = 0
+        if not region_fuel_costs_non_zero.empty:
+            mean_cost = region_fuel_costs_non_zero.mean()
+            std_cost = region_fuel_costs_non_zero.std()
+            threshold = mean_cost - (1/2) * std_cost
 
+            if row['FuelCostTotal'] < threshold:
+                non_zero_costs = region_fuel_costs_non_zero[region_fuel_costs_non_zero > threshold]
+                if not non_zero_costs.empty:
+                    merged_short.at[idx, 'FuelCostTotal'] = np.random.choice(non_zero_costs)
+
+                if merged_short.at[idx, 'FuelCostTotal'] < threshold:
+                    state_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['StateName'] == row['StateName'])]['FuelCostTotal']
+                    state_fuel_costs_non_zero = state_fuel_costs[state_fuel_costs > 0]
+                    if not state_fuel_costs_non_zero.empty:
+                        non_zero_costs = state_fuel_costs_non_zero[state_fuel_costs_non_zero > threshold]
+                        if not non_zero_costs.empty:
+                            merged_short.at[idx, 'FuelCostTotal'] = np.random.choice(non_zero_costs)
+
+                    if merged_short.at[idx, 'FuelCostTotal'] < threshold:
+                        all_fuel_costs = merged_short[merged_short['FuelType'] == fuel_type]['FuelCostTotal']
+                        all_fuel_costs_non_zero = all_fuel_costs[all_fuel_costs > 0]
+                        if not all_fuel_costs_non_zero.empty:
+                            non_zero_costs = all_fuel_costs_non_zero[all_fuel_costs_non_zero > threshold]
+                            if not non_zero_costs.empty:
+                                merged_short.at[idx, 'FuelCostTotal'] = np.random.choice(non_zero_costs)
+
+    merged_short["Fuel_VOM_Cost"] = merged_short["FuelCostTotal"] + merged_short["VOMCostTotal"]
     return merged_short
 
 
