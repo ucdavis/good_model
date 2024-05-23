@@ -436,11 +436,13 @@ def trans_object(df1, df2):
             else:
                 print("Error: No cost found for this transmission line")
                 continue  # Skip to the next iteration if cost is not available
-
+            
             # print("Capacity:", capacity)
 
             # Append data to link_example list
-            link_example.append({'source': origin, 'target': destination, 'cost': cost, 'capacity': capacity})
+            if capacity > 0: 
+                link_example.append({'source': origin, 'target': destination, 'cost': cost, 'capacity': capacity})
+
     return link_example
 
 
@@ -466,7 +468,16 @@ def load_object(df):
 
 def gen_object(df):
     gen_example = []  # List to store generator data in the desired format
-    df = df[~df["PlantType"].isin(["Energy Storage", "Solar PV", "Onshore Wind"])]  # Remove unwanted plant types
+    df = df[~df["PlantType"].isin(['Fossil Waste', 
+        'Municipal Solid Waste', 
+        'Non-Fossil Waste', 
+        'Pumped Storage',
+        'Fuel Cell',
+        'Landfill Gas', 
+        "Energy Storage", 
+        "Solar PV", 
+        "Onshore Wind", 
+        'New Battery Storage'])]  # Remove unwanted plant types
     for index, row in df.iterrows():
         region_name = row.iloc[0]  # First column contains the region name
         plant_type = row.iloc[1]
@@ -527,7 +538,7 @@ def gen_object(df):
 
 
 def storage_object(df):
-    df = df[df["PlantType"] == "Energy Storage"]
+    df = df[df["PlantType"].isin(["New Battery Storeage", "Energy Storage"])]
     stor_example = []  # List to store load data in the desired format
 
     # Iterate through each row of the dataframe

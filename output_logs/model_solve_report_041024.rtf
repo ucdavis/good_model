@@ -1,0 +1,96 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red202\green202\blue202;}
+{\*\expandedcolortbl;;\cssrgb\c83137\c83137\c83137;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs24 \cf2 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Running HiGHS 1.7.0 (git hash: 27ccfaa): Copyright (c) 2024 HiGHS under MIT licence terms\
+Coefficient ranges:\
+  Matrix [3e-09, 1e+00]\
+  Cost   [1e-04, 3e+03]\
+  Bound  [1e-08, 1e-08]\
+  RHS    [2e-02, 3e+06]\
+WARNING: Problem has excessively small bounds: consider scaling the bounds by 1e+4 or more, or setting option user_bound_scale to 14 or more\
+WARNING: No semi-integer/integer variables in model with non-empty integrality\
+Presolving model\
+531700 rows, 3486868 cols, 20402970 nonzeros  7s\
+466259 rows, 3152797 cols, 17503351 nonzeros  14s\
+Presolve : Reductions: rows 466259(-9501547); columns 3152797(-6026609); elements 17503351(-36160952)\
+Solving the presolved LP\
+Using EKK dual simplex solver - serial\
+  Iteration        Objective     Infeasibilities num(sum)\
+          0     0.0000000000e+00 Ph1: 0(0) 16s\
+      29692     3.3290790539e+09 Pr: 290304(1.20365e+11) 22s\
+      58538     5.5244316356e+09 Pr: 238001(9.12253e+10) 27s\
+      84608     6.5978713705e+09 Pr: 216706(6.13081e+10) 32s\
+     110318     7.2417718478e+09 Pr: 167554(3.62396e+10) 37s\
+     133788     7.5546354304e+09 Pr: 173831(7.50361e+10) 42s\
+     157344     7.8041973792e+09 Pr: 146159(7.1536e+10) 47s\
+     182198     8.0032951031e+09 Pr: 126903(1.04758e+11) 53s\
+     204821     8.3125236827e+09 Pr: 113880(4.22064e+10) 58s\
+     227548     8.4393641366e+09 Pr: 91694(9.28019e+09) 63s\
+     244193     8.4725247278e+09 Pr: 90806(2.3221e+10) 68s\
+     257335     8.4815805557e+09 Pr: 90385(1.98336e+10) 73s\
+     271497     8.4981080799e+09 Pr: 72337(9.20318e+09); Du: 0(4.96071e-08) 78s\
+     287242     8.5081684007e+09 Pr: 57536(1.98796e+10); Du: 0(1.44076e-07) 84s\
+     301847     8.5142788617e+09 Pr: 42368(9.0708e+08); Du: 0(4.96071e-08) 89s\
+     317727     8.5204570736e+09 Pr: 29754(2.7499e+09); Du: 0(8.77384e-08) 94s\
+     337763     8.5241293993e+09 Pr: 0(0) 99s\
+     337763     8.5241293993e+09 Pr: 0(0) 99s\
+     337763     8.5241293993e+09 Pr: 0(0) 99s\
+Solving the original LP from the solution after postsolve\
+Using EKK dual simplex solver - serial\
+  Iteration        Objective     Infeasibilities num(sum)\
+     337763     8.5241293995e+09 Pr: 383(0.00011648); Du: 0(2.72086e-12) 109s\
+     337763     8.5241293995e+09 110s\
+Model   status      : Optimal\
+Simplex   iterations: 337763\
+Objective value     :  8.5241293995e+09\
+HiGHS run time      :        113.64\
+[+1090.25] Model solvedRunning HiGHS 1.7.0 (git hash: 27ccfaa): Copyright (c) 2024 HiGHS under MIT licence terms\
+Coefficient ranges:\
+  Matrix [3e-09, 1e+00]\
+  Cost   [1e-04, 3e+03]\
+  Bound  [1e-08, 1e-08]\
+  RHS    [2e-02, 3e+06]\
+WARNING: Problem has excessively small bounds: consider scaling the bounds by 1e+4 or more, or setting option user_bound_scale to 14 or more\
+WARNING: No semi-integer/integer variables in model with non-empty integrality\
+Presolving model\
+531700 rows, 3486868 cols, 20402970 nonzeros  7s\
+466259 rows, 3152797 cols, 17503351 nonzeros  14s\
+Presolve : Reductions: rows 466259(-9501547); columns 3152797(-6026609); elements 17503351(-36160952)\
+Solving the presolved LP\
+Using EKK dual simplex solver - serial\
+  Iteration        Objective     Infeasibilities num(sum)\
+          0     0.0000000000e+00 Ph1: 0(0) 16s\
+      29692     3.3290790539e+09 Pr: 290304(1.20365e+11) 22s\
+      58538     5.5244316356e+09 Pr: 238001(9.12253e+10) 27s\
+      84608     6.5978713705e+09 Pr: 216706(6.13081e+10) 32s\
+     110318     7.2417718478e+09 Pr: 167554(3.62396e+10) 37s\
+     133788     7.5546354304e+09 Pr: 173831(7.50361e+10) 42s\
+     157344     7.8041973792e+09 Pr: 146159(7.1536e+10) 47s\
+     182198     8.0032951031e+09 Pr: 126903(1.04758e+11) 53s\
+     204821     8.3125236827e+09 Pr: 113880(4.22064e+10) 58s\
+     227548     8.4393641366e+09 Pr: 91694(9.28019e+09) 63s\
+     244193     8.4725247278e+09 Pr: 90806(2.3221e+10) 68s\
+     257335     8.4815805557e+09 Pr: 90385(1.98336e+10) 73s\
+     271497     8.4981080799e+09 Pr: 72337(9.20318e+09); Du: 0(4.96071e-08) 78s\
+     287242     8.5081684007e+09 Pr: 57536(1.98796e+10); Du: 0(1.44076e-07) 84s\
+     301847     8.5142788617e+09 Pr: 42368(9.0708e+08); Du: 0(4.96071e-08) 89s\
+     317727     8.5204570736e+09 Pr: 29754(2.7499e+09); Du: 0(8.77384e-08) 94s\
+     337763     8.5241293993e+09 Pr: 0(0) 99s\
+     337763     8.5241293993e+09 Pr: 0(0) 99s\
+     337763     8.5241293993e+09 Pr: 0(0) 99s\
+Solving the original LP from the solution after postsolve\
+Using EKK dual simplex solver - serial\
+  Iteration        Objective     Infeasibilities num(sum)\
+     337763     8.5241293995e+09 Pr: 383(0.00011648); Du: 0(2.72086e-12) 109s\
+     337763     8.5241293995e+09 110s\
+Model   status      : Optimal\
+Simplex   iterations: 337763\
+Objective value     :  8.5241293995e+09\
+HiGHS run time      :        113.64\
+[+1090.25] Model solved}

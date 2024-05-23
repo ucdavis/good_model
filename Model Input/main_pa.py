@@ -53,7 +53,16 @@ wind_oo = wind_object(Wind_generation_profile_wide, Wind_capital_cost, Wind_onsh
 # %% sets
 sets = {
     'region': list(Transmission_Capacity.index.unique()),
-    'gen_type': list(Plants_ungroup[~Plants_ungroup["gen_type"].isin(["Solar PV", "Onshore Wind", "Energy Storage"])]["gen_type"].unique()),
+    'gen_type': list(Plants_ungroup[~Plants_ungroup["gen_type"].isin(['Fossil Waste', 
+        'Municipal Solid Waste', 
+        'Non-Fossil Waste', 
+        'Pumped Storage',
+        'Fuel Cell',
+        'Landfill Gas', 
+        "Energy Storage", 
+        "Solar PV", 
+        "Onshore Wind", 
+        'New Battery Storage'])]["gen_type"].unique()),
     'solar_rc': list(Solar_regional_capacity["New Resource Class"].unique()),
     'wind_rc': list(Wind_onshore_capacity["New Resource Class"].unique()),
     'cost_class': list([1, 2, 3, 4, 5, 6])

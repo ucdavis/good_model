@@ -11,5 +11,4 @@ from . import RegionNode
 from . import opt_model
 from . import class_mapping
 from . import utils
-from . import results
 from . import diagnostics

@@ -193,7 +193,7 @@ class Solar:
         capacity_dict = {}
         cost_dict ={}
 
-        trans_var = getattr(model, self.region_id + '_solarTransCost',0)
+        trans_var = getattr(model, self.region_id + '_solarTransCost', 0)
 
         if hasattr(model, self.region_id + '_solarNew'): 
             capacity_var = getattr(model, self.region_id + '_solarNew').extract_values()

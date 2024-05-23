@@ -1,0 +1,49 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 Running HiGHS 1.7.0 (git hash: 27ccfaa): Copyright (c) 2024 HiGHS under MIT licence terms\
+Coefficient ranges:\
+  Matrix [3e-09, 1e+00]\
+  Cost   [1e-04, 3e+03]\
+  Bound  [1e-08, 1e-08]\
+  RHS    [2e-02, 3e+06]\
+WARNING: Problem has excessively small bounds: consider scaling the bounds by 1e+4 or more, or setting option user_bound_scale to 14 or more\
+WARNING: No semi-integer/integer variables in model with non-empty integrality\
+Presolving model\
+531700 rows, 2928052 cols, 19844154 nonzeros  6s\
+420719 rows, 2461199 cols, 15200515 nonzeros  11s\
+419707 rows, 2456931 cols, 15181266 nonzeros  14s\
+Presolve : Reductions: rows 419707(-9548099); columns 2456931(-6722475); elements 15181266(-38483037)\
+Solving the presolved LP\
+Using EKK dual simplex solver - serial\
+  Iteration        Objective     Infeasibilities num(sum)\
+          0     0.0000000000e+00 Ph1: 0(0) 16s\
+      34141     3.3547815921e+09 Pr: 242134(3.05553e+11) 21s\
+      64716     4.7126203501e+09 Pr: 214739(1.57355e+11) 26s\
+      92763     5.5127424217e+09 Pr: 185917(1.77922e+11) 31s\
+     118485     5.9071634604e+09 Pr: 187023(1.05012e+11) 36s\
+     143329     6.1337058189e+09 Pr: 129356(1.16368e+10) 41s\
+     164059     6.2737082647e+09 Pr: 120904(1.50178e+10) 47s\
+     192646     6.5673043180e+09 Pr: 98775(8.50169e+09) 52s\
+     214669     6.6832427322e+09 Pr: 94669(2.64525e+10) 57s\
+     232089     6.7021330310e+09 Pr: 79195(3.05465e+09) 62s\
+     249787     6.7117069207e+09 Pr: 64876(4.30739e+09); Du: 0(2.48737e-08) 67s\
+     269489     6.7261503281e+09 Pr: 44673(1.08703e+09) 72s\
+     287801     6.7340940411e+09 Pr: 32305(2.09246e+09) 78s\
+     305104     6.7387865151e+09 Pr: 0(0) 82s\
+     305104     6.7387865151e+09 Pr: 0(0) 82s\
+Solving the original LP from the solution after postsolve\
+Using EKK dual simplex solver - serial\
+  Iteration        Objective     Infeasibilities num(sum)\
+     305104     6.7387865153e+09 Pr: 383(0.00011648); Du: 0(2.37663e-12) 93s\
+     305104     6.7387865153e+09 93s\
+Model   status      : Optimal\
+Simplex   iterations: 305104\
+Objective value     :  6.7387865153e+09\
+HiGHS run time      :         96.61\
+\
+}
