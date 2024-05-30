@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+from sklearn.cluster import KMeans
+import networkx as nx
+import time
+# %%
 
 
 def merging_data(Plant, Parsed):
@@ -44,68 +48,86 @@ def map_fuel_type(row_input):
 
 # Create a function to assign fuel costs
 def assign_fuel_costs(input_df):
-    merged_short = input_df[["RegionName", "StateName", "CountyName", "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FuelCostTotal", "VOMCostTotal",
-                           "UTLSRVNM", "NERC", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]]
+    selected_columns = ["RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
+                        "UTLSRVNM", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
 
-    # Apply the function to the DataFrame to create a new column 'MappedFuelType'
-    merged_short.loc[:, "FuelType"] = merged_short.apply(map_fuel_type, axis=1).copy()
-    merged_short = merged_short.loc[~((merged_short["FuelType"].isna()) & (merged_short["PlantType"] != "IMPORT"))].reset_index(drop=True)
-    # Return the loaded dataframes
+    merged_short = input_df[selected_columns].copy()
+    merged_short["FuelCost[$/MWh]"] = ((merged_short["FuelCostTotal"] / (merged_short["FuelUseTotal"] + 1e-10)) * merged_short["HeatRate"]) / 1000
+    # Identify rows with NaN values in the "NERC" column
+    nan_indices = merged_short[merged_short['NERC'].isna()].index
 
-    for r in range(len(merged_short)):
-        if (merged_short.loc[r, 'FossilUnit'] == 'Fossil') and (merged_short.loc[r, 'FuelCostTotal'] == 0):
-            fuel_type_missing = merged_short.loc[r, 'FuelType']
-            ipm_region = merged_short.loc[r, 'RegionName']
-            mean_fuel_cost = merged_short[(merged_short['FuelType'] == fuel_type_missing) & (merged_short['RegionName'] == ipm_region)]['FuelCostTotal'].mean()
-            merged_short.at[r, 'FuelCostTotal'] = mean_fuel_cost
+    # Fill NaN values in "NERC" column with mode of "NERC" for the same region
+    for idx in nan_indices:
+        region = merged_short.at[idx, 'RegionName']
+        region_mode = merged_short[merged_short['RegionName'] == region]['NERC'].mode()
+        if not region_mode.empty:
+            merged_short.at[idx, 'NERC'] = region_mode.iloc[0]
 
-            if (merged_short.loc[r, 'FossilUnit'] == 'Fossil') and (merged_short.loc[r, 'FuelCostTotal'] == 0):
-                fuel_type_missing = merged_short.loc[r, 'FuelType']
-                ipm_state = merged_short.loc[r, 'StateName']
-                mean_fuel_cost = merged_short[(merged_short['FuelType'] == fuel_type_missing) & (merged_short['StateName'] == ipm_state)]['FuelCostTotal'].mean()
-                merged_short.at[r, 'FuelCostTotal'] = mean_fuel_cost
+    merged_short["FuelType"] = merged_short.apply(map_fuel_type, axis=1)
+    merged_short = merged_short[~(merged_short["FuelType"].isna() & (merged_short["PlantType"] != "IMPORT"))].reset_index(drop=True)
 
-    merged_short.loc[merged_short["FuelType"] == "Hydro", "FuelCostTotal"] = 0
-    merged_short.loc[merged_short["FuelType"] == "Pumps", "FuelCostTotal"] = 0
+    for idx, row in merged_short.iterrows():
+        fuel_type = row['FuelType']
+        fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['FuelCost[$/MWh]'] > 1)]['FuelCost[$/MWh]']
+        mean_cost = fuel_costs.mean()
+        std_cost = fuel_costs.std()
+        threshold = mean_cost - (1/2) * std_cost
+        if threshold < 0:
+            threshold = 0
+        if row['FuelCost[$/MWh]'] <= threshold:
+            non_zero_costs = merged_short[(merged_short['FuelType'] == row['FuelType']) & (merged_short['RegionName'] == row['RegionName']) & (merged_short['FuelCost[$/MWh]'] > threshold)]['FuelCost[$/MWh]']
+            if not non_zero_costs.empty:
+                merged_short.at[idx, 'FuelCost[$/MWh]'] = np.random.choice(non_zero_costs)
 
+            if merged_short.at[idx, 'FuelCost[$/MWh]'] <= threshold:
+                state_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['StateName'] == row['StateName']) & (merged_short['FuelCost[$/MWh]'] > threshold)]['FuelCost[$/MWh]']
+                non_zero_costs = state_fuel_costs[state_fuel_costs > threshold]
+                if not non_zero_costs.empty:
+                    merged_short.at[idx, 'FuelCost[$/MWh]'] = np.random.choice(non_zero_costs)
+
+                if merged_short.at[idx, 'FuelCost[$/MWh]'] <= threshold:
+                    adj_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['NERC'] == row['NERC']) & (merged_short['FuelCost[$/MWh]'] > threshold)]['FuelCost[$/MWh]']
+                    non_zero_costs = adj_fuel_costs[adj_fuel_costs > threshold]
+                    if not non_zero_costs.empty:
+                        merged_short.at[idx, 'FuelCost[$/MWh]'] = np.random.choice(non_zero_costs)
+
+                    if merged_short.at[idx, 'FuelCost[$/MWh]'] <= threshold:
+                        all_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['FuelCost[$/MWh]'] > threshold)]['FuelCost[$/MWh]']
+                        non_zero_costs = all_fuel_costs[all_fuel_costs > threshold]
+                        if not non_zero_costs.empty:
+                            merged_short.at[idx, 'FuelCost[$/MWh]'] = np.random.choice(non_zero_costs)
+
+    merged_short["Fuel_VOM_Cost"] = merged_short["FuelCost[$/MWh]"] + merged_short["VOMCostTotal"]
     return merged_short
 
 
-def fill_missing_fuel_costs(input_df, transmission_df):
-    merged_short1 = input_df.loc[(input_df["FossilUnit"] == "Fossil") & (input_df["FuelType"] != "Fwaste") & (input_df["FuelCostTotal"] == 0)]
-    df_matrix = transmission_df[["From", "To"]]
-    regions_with_missing_fuel_cost = input_df.loc[(input_df["FossilUnit"] == "Fossil") & (input_df["FuelType"] != "Fwaste") & (input_df["FuelCostTotal"] == 0)]["RegionName"].tolist()
+def adjust_coal_generation_cost(df):
+    # Filter only the rows with FuelType 'Coal'
+    coal_data = df[df['FuelType'] == 'Coal'].copy()
 
-    neighbors = {}
-    for index, row in df_matrix.iterrows():
-        from_region = row['From']
-        to_region = row['To']
+    # Define the target range and mean
+    target_min = 28
+    target_max = 67
+    target_mean = 44
 
-        if from_region not in neighbors:
-            neighbors[from_region] = []
-        neighbors[from_region].append(to_region)
+    # Normalize the current Fuel_VOM_Cost to the range [0, 1]
+    coal_data['normalized_cost'] = (coal_data['Fuel_VOM_Cost'] - coal_data['Fuel_VOM_Cost'].min()) / (coal_data['Fuel_VOM_Cost'].max() - coal_data['Fuel_VOM_Cost'].min())
 
-        if to_region not in neighbors:
-            neighbors[to_region] = []
-        neighbors[to_region].append(from_region)
+    # Rescale the normalized cost to the target range [28, 67]
+    coal_data['scaled_cost'] = coal_data['normalized_cost'] * (target_max - target_min) + target_min
 
-    for region in regions_with_missing_fuel_cost:
-        fuel_type = merged_short1.loc[merged_short1["RegionName"] == region, "FuelType"].values[0]
+    # Adjust the mean to be 44
+    current_mean = coal_data['scaled_cost'].mean()
+    adjustment_factor = target_mean / current_mean
+    coal_data['adjusted_cost'] = coal_data['scaled_cost'] * adjustment_factor
 
-        region_neighbors = neighbors.get(region, [])
-        matching_rows = input_df[(input_df['RegionName'].isin(region_neighbors)) & (input_df['FuelType'] == fuel_type)]
-        avg_fuel_cost = matching_rows['FuelCostTotal'].mean()
+    # Clip the values to ensure they fall within the desired range
+    coal_data['adjusted_cost'] = coal_data['adjusted_cost'].clip(lower=target_min, upper=target_max)
 
-        condition = (merged_short1['RegionName'] == region) & (merged_short1['FuelType'] == fuel_type)
-        if not matching_rows.empty:
-            merged_short1.loc[condition, 'FuelCostTotal'] = avg_fuel_cost
-        else:
-            merged_short1.loc[condition, 'FuelCostTotal'] = 0
+    # Replace the original Fuel_VOM_Cost with the adjusted values
+    df.loc[df['FuelType'] == 'Coal', 'Fuel_VOM_Cost'] = coal_data['adjusted_cost']
 
-    for index in merged_short1.index:
-        input_df.loc[index] = merged_short1.loc[index]
-
-    return input_df
+    return df
 
 
 def assign_em_rates(input_df):
@@ -180,10 +202,6 @@ def ffill_ren_cap(Wind_onshore_capacity_df, Solar_regional_capacity_df):
     Wind_onshore_capacity_df['State'].ffill(inplace=True)
     Solar_regional_capacity_df['IPM Region'].ffill(inplace=True)
     Solar_regional_capacity_df['State'].ffill(inplace=True)
-    # Wind_onshore_capacity_df.fillna(0, inplace=True)
-    # Solar_regional_capacity_df.fillna(0, inplace=True)
-    # Wind_onshore_capacity_df.fillna(0, inplace=True)
-    # Solar_regional_capacity_df.fillna(0, inplace=True)
     return Wind_onshore_capacity_df, Solar_regional_capacity_df
 
 
@@ -192,8 +210,7 @@ def ffill_ren_cost(Wind_onshore_cost_df, Solar_regional_cost_df):
     Wind_onshore_cost_df['State'].ffill(inplace=True)
     Solar_regional_cost_df['IPM Region'].ffill(inplace=True)
     Solar_regional_cost_df['State'].ffill(inplace=True)
-    # Wind_onshore_cost_df.fillna(10**9, inplace=True)
-    # Solar_regional_cost_df.fillna(10**9, inplace=True)
+
     return Wind_onshore_cost_df, Solar_regional_cost_df
 
 
@@ -212,20 +229,20 @@ def transmission_func(Input_df):
 
     return Transmission_Capacity_df, Transmission_Energy_df, Transmission_Cost_df
 
+def cluster_and_aggregate(df):
+    # Identify rows with NaN values
 
-def cluster_and_aggregate(df, num_bins=20):
-    # Define custom heat rate ranges
-    bin_width = (df['HeatRate'].max() - df['HeatRate'].min()) / num_bins
-    # Assign cluster numbers to each data point
-    df['HeatRate_Cluster'] = np.digitize(df['HeatRate'], np.arange(df['HeatRate'].min(), df['HeatRate'].max(), bin_width))
+    df.loc[:, 'gen_type'] = df['PlantType'] + '_' + df['FuelType']
+    df.loc[:, 'GroupID'] = df.groupby(["RegionName", "PlantType", "FuelType", "gen_type"]).ngroup()
 
-    df['GroupID'] = df.groupby(["RegionName", "PlantType", "FuelType", "HeatRate_Cluster"]).ngroup()
-
-    result = df.groupby(["RegionName", "PlantType", "FuelType", "HeatRate_Cluster"])[
-        ["FossilUnit", "Capacity", "FuelCostTotal", "NERC", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "PLPMTRO", "GroupID"]
+    result = df.groupby(["RegionName", "PlantType", "FuelType", "community"])[
+        ["FossilUnit", "Capacity", "FuelCost[$/MWh]", "FuelCostTotal", 'VOMCostTotal', 'Fuel_VOM_Cost', "NERC", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "PLPMTRO", "GroupID"]
     ].agg({
         "Capacity": 'sum',
+        "FuelCost[$/MWh]": 'mean',
         "FuelCostTotal": 'mean',
+        "VOMCostTotal": 'mean',
+        "Fuel_VOM_Cost": 'mean',
         "PLNOXRTA": 'mean',
         "PLSO2RTA": 'mean',
         "PLCO2RTA": 'mean',
@@ -240,6 +257,131 @@ def cluster_and_aggregate(df, num_bins=20):
 
 # Create a MultiIndex for the columns with month and day
 
+def haversine_distance_miles(lat1, lon1, lat2, lon2):
+    # Convert latitude and longitude from degrees to radians
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arcsin(np.sqrt(a))
+
+    # Earth's radius in miles (mean radius)
+    r = 3959.0
+
+    # Distance in miles
+    distance = c * r
+    return distance
+
+
+def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_distance, resolution, heatrate_weight, emission_weight, cost_weight):
+    # df = Plants_community.copy()
+    # heat_rate_distance = 5000
+    # emission_rate_distance = 28000
+    # cost_rate_distance = 50
+    # heatrate_weight = 10
+    # emission_weight = 12
+    # cost_weight=  1.75
+    # resolution = 20
+    # Get all unique regions
+    # region_name = "S_VACA"
+    unique_regions = df['RegionName'].unique()
+
+    all_regions_clusters = {}
+    df.loc[:, 'community'] = 0   # Initialize a new column for community numbers
+
+    for region_name in unique_regions:
+
+        start_time = time.time()
+        # Filter the dataframe to include only plants from the current region
+        df_region = df[df['RegionName'] == region_name].copy()
+
+        nodes = []
+        for idx in range(len(df_region)):
+            nodes.append({
+                'id': f'plant_{idx}',
+
+                'heat_rate': df_region["HeatRate"].iloc[idx],
+                'emission_rate': df_region["PLCO2RTA"].iloc[idx],
+                'cost_rate': df_region['FuelCost[$/MWh]'].iloc[idx],
+            })
+
+        links = []
+
+        weighted_distance_function = lambda link: (
+                heatrate_weight * link['heat_rate_distance'] +
+                emission_weight * link['emission_rate_distance'] +
+                cost_weight * link['cost_rate_distance']
+        )
+
+        for idx_source in range(len(df_region)):
+            for idx_target in range(len(df_region)):
+                if idx_source == idx_target:
+                    continue
+
+                source = f'plant_{idx_source}'
+                target = f'plant_{idx_target}'
+
+                links.append({
+                    'source': source,
+                    'target': target,
+                    'heat_rate_distance': np.abs(nodes[idx_target]['heat_rate'] - nodes[idx_source]['heat_rate']),
+                    'emission_rate_distance': np.abs(nodes[idx_target]['emission_rate'] - nodes[idx_source]['emission_rate']),
+                    'cost_rate_distance': np.abs(nodes[idx_target]['cost_rate'] - nodes[idx_source]['cost_rate']),
+                })
+
+                links[-1]['weighted_distance'] = weighted_distance_function(links[-1])
+
+        limits = {
+            # 'pythagorean_distance': pythagorean_distance,
+            'heat_rate_distance': heat_rate_distance,
+            'emission_rate_distance': emission_rate_distance,
+            'cost_rate_distance': cost_rate_distance,
+        }
+
+        links_filtered = []
+
+        for link in links:
+            keep = True
+            for field, value in limits.items():
+                keep *= link[field] <= value
+
+            if keep:
+                links_filtered.append(link)
+        graph = nx.node_link_graph({'nodes': nodes, 'links': links_filtered})
+
+
+        communities = list(nx.community.greedy_modularity_communities(
+                graph, weight='weighted_distance', resolution=resolution
+            ))
+
+        # communities = list(nx.community.k_clique_communities(graph, 2))
+        # communities = list(nx.community.label_propagation_communities(graph))
+
+        community_map = {}
+        for community_number, community in enumerate(communities):
+            # print(community_number)
+            # print(community)
+            for node in community:
+                community_map[node] = community_number
+
+        node_index = 0  # Initialize node index
+
+        for idx, row in df_region.iterrows():
+            node_id = f'plant_{node_index}'
+            if node_id in community_map:
+                df.loc[idx, 'community'] = community_map[node_id]
+            node_index += 1
+
+        all_regions_clusters[region_name] = {
+            'nodes': graph.number_of_nodes(),
+            'links': graph.number_of_edges()
+        }
+
+        end_time = time.time()
+        print(f"Time taken to cluster plants in {region_name}: {end_time - start_time} seconds")
+    return df, all_regions_clusters
 
 def long_wide_load(input_df):
     df = input_df.copy()
@@ -461,43 +603,67 @@ def load_object(df):
         load_example.append({'id': region_name, 'dependents': [{'data_class': 'load', 'parameters': [{'data_type': 'load', 'parameters': [{"value": parameters}]}]}]})
     return load_example
 
-
 def gen_object(df):
     gen_example = []  # List to store generator data in the desired format
     df = df[~df["PlantType"].isin(["Energy Storage", "Solar PV", "Onshore Wind"])]  # Remove unwanted plant types
+
     for index, row in df.iterrows():
         region_name = row.iloc[0]  # First column contains the region name
-        plant_type = row.iloc[1]
-        fuel_type = row.iloc[2]
-        cost = row.iloc[5]
-        capacity = row.iloc[4]
-        group_id = row.iloc[12]
+        plant_type = row.iloc[1]  # Second column contains the Plant Type
+        fuel_type = row.iloc[2]  # Third column contains the Fuel Type
+        community = row.iloc[3]  # Fourth column contains the community number
+        cost = row.iloc[5]  # Tenth column contains the Fuel and VOM Cost
+        capacity = row.iloc[4]  # Seventh column contains the generator capacity
+        group_id = row.iloc[15]  # Seventeenth column contains the group ID
+        gen_type = f'{plant_type}_{fuel_type}'
 
         # Check if the region already exists in gen_example
         region_exists = False
         for region_data in gen_example:
             if region_data['id'] == region_name:
-                # Find the index of the existing data_type if it exists
-                existing_data_type_index = None
-                for i, dependent in enumerate(region_data['dependents']):
-                    if dependent['data_class'] == 'generator':
-                        existing_data_type_index = i
-                        break
-
-                # If the data_type exists, append parameters with different plant type
-                if existing_data_type_index is not None:
-                    region_data['dependents'][existing_data_type_index]['parameters'].append({
-                        'plant_type': plant_type,
-                        'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
-                    })
-                else:  # If the data_type doesn't exist, create a new one
-                    region_data['dependents'].append({
-                        'data_class': 'generator',
+                # Find the index of the existing generator type if it exists
+                generator_exists = False
+                for data_class in region_data['dependents']:
+                    if data_class['data_class'] == 'generator':
+                        for parameter in data_class['parameters']:
+                            if parameter['data_type'] == 'generators':
+                                for gen_param in parameter['parameters']:
+                                    if gen_param['gen_type'] == gen_type:
+                                        # Check for existing community
+                                        community_exists = False
+                                        for com_param in gen_param['parameters']:
+                                            if com_param['community'] == community:
+                                                com_param['values'].append({
+                                                    'cost': cost,
+                                                    'capacity': capacity,
+                                                    'group_id': group_id
+                                                })
+                                                community_exists = True
+                                                break
+                                        if not community_exists:
+                                            gen_param['parameters'].append({
+                                                'community': community,
+                                                'values': [{
+                                                    'cost': cost,
+                                                    'capacity': capacity,
+                                                    'group_id': group_id
+                                                }]
+                                            })
+                                        generator_exists = True
+                                        break
+                                if generator_exists:
+                                    break
+                        if generator_exists:
+                            break
+                if not generator_exists:
+                    data_class['parameters'][0]['parameters'].append({
+                        'gen_type': gen_type,
                         'parameters': [{
-                            'data_type': "generators",
-                            'parameters': [{
-                                'plant_type': plant_type,
-                                'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
+                            'community': community,
+                            'values': [{
+                                'cost': cost,
+                                'capacity': capacity,
+                                'group_id': group_id
                             }]
                         }]
                     })
@@ -513,8 +679,15 @@ def gen_object(df):
                     'parameters': [{
                         'data_type': "generators",
                         'parameters': [{
-                            'plant_type': plant_type,
-                            'generation': [{'fuel_type': fuel_type, 'values': {"cost": cost, "capacity": capacity, "group_id": group_id}}]
+                            'gen_type': gen_type,
+                            'parameters': [{
+                                'community': community,
+                                'values': [{
+                                    'cost': cost,
+                                    'capacity': capacity,
+                                    'group_id': group_id
+                                }]
+                            }]
                         }]
                     }]
                 }]
@@ -641,6 +814,7 @@ def wind_object(df1, df2, df3, df4, Plants_group, Region):
         trans_cost_df = df4[df4['IPM Region'] == region_name]
 
         # Add wind generation profile data
+        gen_profile_df['New Resource Class'] = gen_profile_df['New Resource Class'].fillna('1')
         wind_gen_params = {'data_type': 'wind_gen', 'parameters': []}
         for index, row in gen_profile_df.iterrows():
             gen_profile = row.drop(['IPM Region', 'Resource Class', 'State', "New Resource Class"]).dropna().to_dict()
