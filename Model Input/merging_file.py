@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 import networkx as nx
 import time
+import math
 # %%
 
 
@@ -321,16 +322,7 @@ def haversine_distance_miles(lat1, lon1, lat2, lon2):
 
 
 def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_distance, resolution, heatrate_weight, emission_weight, cost_weight):
-    # df = Plants_community.copy()
-    # heat_rate_distance = 5000
-    # emission_rate_distance = 28000
-    # cost_rate_distance = 50
-    # heatrate_weight = 10
-    # emission_weight = 12
-    # cost_weight=  1.75
-    # resolution = 20
-    # Get all unique regions
-    # region_name = "S_VACA"
+
     unique_regions = df['RegionName'].unique()
 
     all_regions_clusters = {}
@@ -354,10 +346,10 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
 
         links = []
 
-        weighted_distance_function = lambda link: (
-                heatrate_weight * link['heat_rate_distance'] +
-                emission_weight * link['emission_rate_distance'] +
-                cost_weight * link['cost_rate_distance']
+        weighted_distance_function = lambda link: math.e**-(
+                heatrate_weight * (link['heat_rate_distance'] / heat_rate_distance) +
+                emission_weight * (link['emission_rate_distance'] / emission_rate_distance) +
+                cost_weight * (link['cost_rate_distance'] / cost_rate_distance)
         )
 
         for idx_source in range(len(df_region)):

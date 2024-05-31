@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 # %%
 # Your nested data dictionary
 Price_test = Plant_short.copy()
+Price_test = Plants_group.copy()
 # Price_test["&/MWh"] = Price_test["cost"]
 Price_test["&/MWh"] = Price_test["Fuel_VOM_Cost"]
 # %%
@@ -80,6 +81,6 @@ for j in range(i + 1, len(axes)):
 plt.tight_layout()
 
 # Show plot
-# plt.show()
+plt.show()
 # Save the figure in PNG format
-plt.savefig('subplot_grid3.png')
+# plt.savefig('subplot_grid3.png')
