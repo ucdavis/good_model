@@ -275,10 +275,11 @@ def transmission_func(Input_df):
 def cluster_and_aggregate(df):
     # Identify rows with NaN values
     df.loc[:, 'community_number'] = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).ngroup()
-    df.loc[:, 'GroupID'] = df.groupby(["RegionName", "PlantType", "FuelType", "gen_type"]).ngroup()
+
     # Ensure community_number is from 1 within each region
     df['community_number'] = df.groupby("RegionName")['community_number'].transform(lambda x: x - x.min() + 1)
     df.loc[:, 'gen_type'] = df['PlantType'] + '_' + df['FuelType'] + '_' + df['community_number'].astype(str)
+    df.loc[:, 'GroupID'] = df.groupby(["RegionName", "PlantType", "FuelType", "gen_type"]).ngroup()
     result = df.groupby(["RegionName", "PlantType", "FuelType", "community_number"])[
         ["FossilUnit", "Capacity", "FuelCost[$/MWh]", "FuelCostTotal", 'VOMCostTotal', 'Fuel_VOM_Cost', "NERC", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "PLPMTRO", "GroupID"]
     ].agg({
@@ -874,3 +875,37 @@ def wind_object(df1, df2, df3, df4, Plants_group, Region):
 
     return wind_examples
 
+
+def merge_dictionaries_and_format(list_of_dicts):
+    # Define an empty dictionary to hold merged dictionaries grouped by "id"
+    merged_dict = {}
+    # Temporary dictionary to hold the merged data
+    temp_merged_dict = {}
+
+    # Final list to hold the formatted output
+    formatted_list = []
+
+    # Iterate over the list of dictionaries
+    for single_dict in list_of_dicts:
+        id = single_dict['id']
+        dependents = single_dict['dependents']
+
+        if id in temp_merged_dict:
+            temp_merged_dict[id]['dependents'].extend(dependents)
+        else:
+            temp_merged_dict[id] = {'id': id, 'dependents': dependents}
+
+    # Convert the merged dictionary into the desired list format
+    for id, info in temp_merged_dict.items():
+        formatted_list.append({'id': id, 'dependents': info['dependents']})
+
+    return formatted_list
+
+
+def convert_keys_to_string(obj):
+    if isinstance(obj, dict):
+        return {str(key) if not isinstance(key, (np.int64, np.int32)) else int(key): convert_keys_to_string(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_keys_to_string(element) for element in obj]
+    else:
+        return obj

@@ -3,7 +3,8 @@ import os
 from reading_file import load_data
 from merging_file import (merging_data, assign_fuel_costs, cluster_plants, adjust_coal_generation_cost, assign_em_rates, long_wide, transmission_func,
                           ffill_ren_cost, ffill_ren_cap, cluster_and_aggregate, long_wide_load, load_dic, wind_cap_dic, wind_cost_dic, solar_cap_dic,
-                          solar_cost_dic, storage_object, solar_object, wind_object, gen_object, load_object, trans_object, transmission_dic1, cp_dic, plant_dic, plant_capacity, trans_index, renewable_transmission_cost)
+                          solar_cost_dic, storage_object, solar_object, wind_object, gen_object, load_object, trans_object, transmission_dic1, cp_dic, plant_dic, plant_capacity, trans_index, renewable_transmission_cost,
+                          convert_keys_to_string, merge_dictionaries_and_format)
 import json
 import numpy as np
 # %% Loading Input Data
@@ -61,39 +62,8 @@ sets = {
 }
 sorted_sets = {key: sorted(value) for key, value in sets.items()}
 # %% Saving output as JSON file
-# Define the file path for saving the JSON file
-input_file = 'all_input_objects.json'
-# Define an empty dictionary to hold merged dictionaries grouped by "id"
-merged_dict = {}
-
-
-# Define a list of all dictionaries
-def merge_dictionaries_and_format(list_of_dicts):
-    # Temporary dictionary to hold the merged data
-    temp_merged_dict = {}
-
-    # Final list to hold the formatted output
-    formatted_list = []
-
-    # Iterate over the list of dictionaries
-    for single_dict in list_of_dicts:
-        id = single_dict['id']
-        dependents = single_dict['dependents']
-
-        if id in temp_merged_dict:
-            temp_merged_dict[id]['dependents'].extend(dependents)
-        else:
-            temp_merged_dict[id] = {'id': id, 'dependents': dependents}
-
-    # Convert the merged dictionary into the desired list format
-    for id, info in temp_merged_dict.items():
-        formatted_list.append({'id': id, 'dependents': info['dependents']})
-
-    return formatted_list
 
 # Assuming load_oo, generator_oo, storage_oo, solar_oo, and wind_oo are defined with the same structure...
-
-
 # Combine all the dictionaries into one list
 all_dicts = load_oo + generator_oo + storage_oo + solar_oo + wind_oo
 # all_dicts = load_oo + generator_oo + storage_oo
@@ -107,21 +77,12 @@ all_objects = {
     'links': links,
 }
 
-
 # Convert all nested keys to strings
-def convert_keys_to_string(obj):
-    if isinstance(obj, dict):
-        return {str(key) if not isinstance(key, (np.int64, np.int32)) else int(key): convert_keys_to_string(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_keys_to_string(element) for element in obj]
-    else:
-        return obj
-
-
 all_objects_str_keys = convert_keys_to_string(all_objects)
 
 # %%
-
+# Define the file path for saving the JSON file
+input_file = 'all_input_objects.json'
 # Save all objects as JSON
 with open(input_file, 'w') as f:
     json.dump(all_objects_str_keys, f)
@@ -134,5 +95,3 @@ input_sets_sorted = 'all_input_sets_sorted.json'
 with open(input_sets_sorted, 'w') as f:
     json.dump(sorted_sets_str, f)
 
-
-# %%
