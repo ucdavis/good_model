@@ -99,36 +99,30 @@ class Solar:
         ## nested dictionary, ex: model.c_solarprofile[s][t]
         ## tuple dictionary, ex: model.c_solarprofile[s,t]
 
-        if self.installed_capacity:
-            model.add_component(
-                self.region_id + '_solarCap', 
-                pyomo.Param(model.src, model.cc, initialize=self.installed_capacity, default=0)
-            )
+        model.add_component(
+            self.region_id + '_solarCap', 
+            pyomo.Param(model.src, model.cc, initialize=self.installed_capacity, default=0)
+        )
 
-       
-        if self.max_capacity: 
-            model.add_component(
-                self.region_id + '_solarMax', 
-                pyomo.Param(model.src, model.cc, initialize=self.max_capacity, default=0)
-            )
+        model.add_component(
+            self.region_id + '_solarMax', 
+            pyomo.Param(model.src, model.cc, initialize=self.max_capacity, default=0)
+        )
 
-        if self.cost:
-            model.add_component( 
-                self.region_id + '_solarCost', 
-                pyomo.Param(model.src, model.cc,  initialize=self.cost, default=0)
-            )
+        model.add_component( 
+            self.region_id + '_solarCost', 
+            pyomo.Param(model.src, model.cc,  initialize=self.cost, default=0)
+        )
 
-        if self.gen_profile: 
-            model.add_component( 
-                self.region_id + '_solarGenProfile', 
-                pyomo.Param(model.src, model.t,initialize=self.gen_profile, default=0)
-            )
+        model.add_component( 
+            self.region_id + '_solarGenProfile', 
+            pyomo.Param(model.src, model.t,initialize=self.gen_profile, default=0)
+        )
 
-        if self.transmission_cost:
-            model.add_component( 
-                self.region_id + '_solarTransCost', 
-                pyomo.Param(model.src, model.cc, initialize=self.transmission_cost, default=0)
-            )        
+        model.add_component( 
+            self.region_id + '_solarTransCost', 
+            pyomo.Param(model.src, model.cc, initialize=self.transmission_cost, default=0)
+        )        
         
 
     def variables(self, model):

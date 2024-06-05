@@ -13,9 +13,12 @@ class Generator:
 
                 gen_id = params.get('gen_type', '')
                 values = params.get('values', {})
-                capacity = values.get('capacity',0)
-                cost = values.get('cost', 0)
-                cf = values.get('cf', 1)
+
+                for val in values: 
+
+                    capacity = val.get('capacity',0)
+                    cost = val.get('cost', 0)
+                    cf = val.get('cf', 1)
                 
                 if gen_id not in self.gen_capacity:
                     self.gen_capacity[gen_id] = capacity

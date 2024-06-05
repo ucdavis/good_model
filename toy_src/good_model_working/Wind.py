@@ -98,35 +98,30 @@ class Wind:
         ## nested dictionary, ex: model.c_windprofile[w][t]
         ## tuple dictionary, ex: model.c_windprofile[w,t]
 
-        if self.installed_capacity:
-            model.add_component(
-                self.region_id + '_windCap',
-                pyomo.Param(model.wrc, model.cc, initialize=self.installed_capacity, default=0)
-            )
- 
-        if self.max_capacity: 
-            model.add_component(
-                self.region_id + '_windMax',
-                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, default=0)
-            )
-        
-        if self.cost: 
-            model.add_component(
-                self.region_id + '_windCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.cost, default=0)
-            )
-  
-        if self.transmission_cost: 
-            model.add_component(
-                self.region_id + '_windTransCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, default=0)
-            )
+        model.add_component(
+            self.region_id + '_windCap',
+            pyomo.Param(model.wrc, model.cc, initialize=self.installed_capacity, default=0)
+        )
 
-        if self.gen_profile: 
-            model.add_component(
-                self.region_id + '_windGenProfile',
-                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, default=0)
-            )
+        model.add_component(
+            self.region_id + '_windMax',
+            pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, default=0)
+        )
+    
+        model.add_component(
+            self.region_id + '_windCost',
+            pyomo.Param(model.wrc, model.cc, initialize=self.cost, default=0)
+        )
+
+        model.add_component(
+            self.region_id + '_windTransCost',
+            pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, default=0)
+        )
+
+        model.add_component(
+            self.region_id + '_windGenProfile',
+            pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, default=0)
+        )
 
             
     def variables(self, model):
