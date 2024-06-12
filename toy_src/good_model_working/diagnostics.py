@@ -84,11 +84,6 @@ def get_annual_gen_mix(results):
 
             solar_capacity_dict = solar_dict.get('capacity', {})
 
-            # total_solar_capacity = 0
-            # for key, value in solar_capacity_dict.items(): 
-
-            #     total_solar_capacity += value
-
             total_solar_capacity = sum(solar_capacity_dict.values())
 
             if 'Solar' not in fuel_mix: 
@@ -199,7 +194,7 @@ def get_annual_emissions(results):
 
     nodes = results['nodes']
 
-    fuel_mix = {}
+    emissions_total = {}
 
     for region, obj_data in nodes.items():
         gen_dict = obj_data.get('generator', {})

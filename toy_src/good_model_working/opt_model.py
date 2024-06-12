@@ -19,6 +19,7 @@ class Opt_Model:
         self.wind_ids = self.sets.get('wind_rc', [])
         self.cost_class_ids = self.sets.get('cost_class', [])
         self.gen_type = self.sets.get('gen_type', [])
+        self.gen_to_remove = model_data.get('gen_to_remove',[])
 
         self.test_nodes = model_data.get('test_nodes', False)
         if self.test_nodes: 

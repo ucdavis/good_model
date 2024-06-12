@@ -20,6 +20,26 @@ from .constants import time_periods
 
 '''
 
+# variables used in the model:
+
+gen_to_remove = [
+        'Fossil Waste', 
+        # 'Municipal Solid Waste', 
+        'Non-Fossil Waste', 
+        'Pumped Storage',
+        'Fuel Cell',
+        'Landfill Gas', 
+        # "Energy Storage", 
+        # "Solar PV", 
+        # "Onshore Wind", 
+        # 'New Battery Storage', 
+        # 'IMPORT', 
+        # 'Tires',
+        'Offshore Wind', 
+        'Solar Thermal'
+        ]
+
+
 def get_model_statistcs(model): 
 
     model.compute_statistics()
@@ -113,7 +133,6 @@ def get_subgraph(user_input, graph):
         if region in sub_nodes:
             selected_nodes.extend(sub_nodes[region])
 
-    # sub_nodes = sorted(sub_nodes[sub_region])
     subgraph_nodes = graph.subgraph(selected_nodes)
 
     filtered_edges = [(u, v) for u, v, d in subgraph_nodes.edges(data=True) if d['capacity'] > 0.0]

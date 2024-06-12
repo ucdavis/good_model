@@ -1,5 +1,5 @@
 import pyomo.environ as pyomo
-from .constants import gen_to_remove
+from .utils import gen_to_remove
 
 class Generator:
     def __init__(self, region_id, generators):
@@ -7,7 +7,7 @@ class Generator:
         self.gen_cost = {}
         self.gen_capacity = {}
         self.gen_to_remove = gen_to_remove
- 
+        
         for data in generators:     
             cost_weight = {}
 
@@ -31,6 +31,7 @@ class Generator:
         self.gen_cost = {key: value for key, value in self.gen_cost.items() if not any(substring in key for substring in self.gen_to_remove)}
         self.gen_capacity = {key: value for key, value in self.gen_capacity.items() if not any(substring in key for substring in self.gen_to_remove)}
         self.valid_gen_types = [g for g in self.gen_capacity if self.gen_capacity[g] > 0]
+        self.valid_gen_types_2 = set(self.gen_cost.keys())
 
     def parameters(self, model):
 
@@ -92,13 +93,13 @@ class Generator:
             for key, value in dispatch_capacity.items(): 
                 gen_type = key[0]
                 hour = key[1]
+
                 if gen_type not in region_capacity: 
-                    region_capacity[gen_type] = 0 
+                    region_capacity[gen_type] = {}
                 
                 region_capacity[gen_type][hour] = value
 
         if hasattr(model,self.region_id + '_gencost'): 
-            # dispatch_capacity = getattr(model, self.region_id + '_generation').extract_values()
             dispatch_cost = getattr(model, self.region_id + '_gencost').extract_values()
 
             for gen_type, profile in region_capacity.items():
