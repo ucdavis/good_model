@@ -274,7 +274,26 @@ def transmission_func(Input_df):
 
 
 def cluster_and_aggregate(df):
+    # df = Plants_community.copy()
     # Identify rows with NaN values
+    df = (df.groupby(["RegionName", "PlantType", "FuelType", "Fuel_VOM_Cost", "PLCO2RTA"])
+          [["FossilUnit", "Capacity", "FuelCost[$/MWh]", "FuelCostTotal", 'VOMCostTotal', "NERC", "PLNOXRTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLPMTRO", "community", "GroupID"]]
+          .agg({
+        "Capacity": 'sum',
+        "FuelCost[$/MWh]": 'mean',
+        "FuelCostTotal": 'mean',
+        "VOMCostTotal": 'mean',
+        "PLNOXRTA": 'mean',
+        "PLSO2RTA": 'mean',
+        "PLCH4RTA": 'mean',
+        "PLN2ORTA": 'mean',
+        "PLPMTRO": 'mean',
+        "community": 'first',
+        "NERC" : "first",
+        "FossilUnit" : "first",
+        "GroupID": 'mean'
+    }).reset_index(drop=False))
+
     df.loc[:, 'community_number'] = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).ngroup()
 
     # Ensure community_number is from 1 within each region
@@ -323,25 +342,45 @@ def haversine_distance_miles(lat1, lon1, lat2, lon2):
 
 def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_distance, resolution, heatrate_weight, emission_weight, cost_weight):
 
-    unique_regions = df['RegionName'].unique()
+    a = ["Solar", "Wind", "EnerStor", "Hydro"]
+    dispatch_df = df[~df["FuelType"].isin(a)]
+    nondispatch_df = df[df["FuelType"].isin(a)]
+    nondispatch_df = nondispatch_df.groupby(["RegionName", "PlantType", "FuelType"]).agg({
+        "Capacity": 'sum',
+        "FuelCost[$/MWh]": 'mean',
+        "FuelCostTotal": 'mean',
+        "VOMCostTotal": 'mean',
+        "Fuel_VOM_Cost": 'mean',
+        "PLNOXRTA": 'mean',
+        "PLSO2RTA": 'mean',
+        "PLCO2RTA": 'mean',
+        "PLCH4RTA": 'mean',
+        "PLN2ORTA": 'mean',
+        "PLPMTRO": 'mean',
+        "GroupID": 'mean'
+    }).reset_index(drop=False)
+    nondispatch_df["community"] = 0
+    
+    
+    unique_regions = dispatch_df['RegionName'].unique()
 
     all_regions_clusters = {}
-    df.loc[:, 'community'] = 0   # Initialize a new column for community numbers
+    dispatch_df.loc[:, 'community'] = 0   # Initialize a new column for community numbers
 
     for region_name in unique_regions:
 
         start_time = time.time()
         # Filter the dataframe to include only plants from the current region
-        df_region = df[df['RegionName'] == region_name].copy()
+        dispatch_df_region = dispatch_df[dispatch_df['RegionName'] == region_name].copy()
 
         nodes = []
-        for idx in range(len(df_region)):
+        for idx in range(len(dispatch_df_region)):
             nodes.append({
                 'id': f'plant_{idx}',
 
-                'heat_rate': df_region["HeatRate"].iloc[idx],
-                'emission_rate': df_region["PLCO2RTA"].iloc[idx],
-                'cost_rate': df_region['FuelCost[$/MWh]'].iloc[idx],
+                'heat_rate': dispatch_df_region["HeatRate"].iloc[idx],
+                'emission_rate': dispatch_df_region["PLCO2RTA"].iloc[idx],
+                'cost_rate': dispatch_df_region['FuelCost[$/MWh]'].iloc[idx],
             })
 
         links = []
@@ -352,8 +391,8 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
                 cost_weight * (link['cost_rate_distance'] / cost_rate_distance)
         )
 
-        for idx_source in range(len(df_region)):
-            for idx_target in range(len(df_region)):
+        for idx_source in range(len(dispatch_df_region)):
+            for idx_target in range(len(dispatch_df_region)):
                 if idx_source == idx_target:
                     continue
 
@@ -405,10 +444,10 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
 
         node_index = 0  # Initialize node index
 
-        for idx, row in df_region.iterrows():
+        for idx, row in dispatch_df_region.iterrows():
             node_id = f'plant_{node_index}'
             if node_id in community_map:
-                df.loc[idx, 'community'] = community_map[node_id]
+                dispatch_df.loc[idx, 'community'] = community_map[node_id]
             node_index += 1
 
         all_regions_clusters[region_name] = {
@@ -418,6 +457,16 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
 
         end_time = time.time()
         print(f"Time taken to cluster plants in {region_name}: {end_time - start_time} seconds")
+
+        nondispatch_df_cn = dispatch_df["community"].max()
+        nondispatch_df_cn_solar = nondispatch_df_cn + 1
+        nondispatch_df_cn_wind = nondispatch_df_cn + 2
+        nondispatch_df_cn_storage = nondispatch_df_cn + 3
+
+        nondispatch_df.loc[nondispatch_df["FuelType"] == "Wind", "community"] = nondispatch_df_cn_wind
+        nondispatch_df.loc[nondispatch_df["FuelType"] == "Solar", "community"] = nondispatch_df_cn_solar
+        nondispatch_df.loc[nondispatch_df["FuelType"] == "EnerStor", "community"] = nondispatch_df_cn_storage
+        df = pd.concat([dispatch_df, nondispatch_df], axis=0)
     return df, all_regions_clusters
 
 def long_wide_load(input_df):
@@ -640,6 +689,7 @@ def load_object(df):
         load_example.append({'id': region_name, 'dependents': [{'data_class': 'load', 'parameters': [{'data_type': 'load', 'parameters': [{"value": parameters}]}]}]})
     return load_example
 
+
 def gen_object(df):
     gen_example = []  # List to store generator data in the desired format
     df = df[~df["PlantType"].isin(["Energy Storage", "Solar PV", "Onshore Wind"])]  # Remove unwanted plant types
@@ -706,6 +756,74 @@ def gen_object(df):
             })
 
     return gen_example
+#
+# def gen_object(df):
+#     gen_example = []  # List to store generator data in the desired format
+#     df = df[~df["PlantType"].isin(["Energy Storage", "Solar PV", "Onshore Wind"])]  # Remove unwanted plant types
+#
+#     for index, row in df.iterrows():
+#         region_name = row.iloc[0]  # First column contains the region name
+#         plant_type = row.iloc[1]  # Second column contains the Plant Type
+#         fuel_type = row.iloc[2]  # Third column contains the Fuel Type
+#         community = row.iloc[3]  # Fourth column contains the community number
+#         cost = row.iloc[5]  # Tenth column contains the Fuel and VOM Cost
+#         capacity = row.iloc[4]  # Seventh column contains the generator capacity
+#         group_id = row.iloc[15]  # Seventeenth column contains the group ID
+#         gen_type = f'{plant_type}_{fuel_type}_{community}'
+#
+#         # Check if the region already exists in gen_example
+#         region_exists = False
+#         for region_data in gen_example:
+#             if region_data['id'] == region_name:
+#                 # Find the index of the existing generator type if it exists
+#                 generator_exists = False
+#                 for data_class in region_data['dependents']:
+#                     if data_class['data_class'] == 'generator':
+#                         for parameter in data_class['parameters']:
+#                             if parameter['data_type'] == 'generators':
+#                                 for gen_param in parameter['parameters']:
+#                                     if gen_param['gen_type'] == gen_type:
+#                                         gen_param['values'].append({
+#                                             'cost': cost,
+#                                             'capacity': capacity,
+#                                             'group_id': group_id
+#                                         })
+#                                         generator_exists = True
+#                                         break
+#                                 if not generator_exists:
+#                                     parameter['parameters'].append({
+#                                         'gen_type': gen_type,
+#                                         'values': {
+#                                             'cost': cost,
+#                                             'capacity': capacity,
+#                                             'group_id': group_id
+#                                         }
+#                                     })
+#                                 region_exists = True
+#                                 break
+#
+#         # If the region doesn't exist, create a new entry
+#         if not region_exists:
+#             gen_example.append({
+#                 'id': region_name,
+#                 'dependents': [{
+#                     'data_class': 'generator',
+#                     'parameters': [{
+#                         'data_type': "generators",
+#                         'parameters': [{
+#                             'gen_type': gen_type,
+#                             'values': {
+#                                 'cost': cost,
+#                                 'capacity': capacity,
+#                                 'group_id': group_id
+#                             }
+#                         }]
+#                     }]
+#                 }]
+#             })
+#
+#     return gen_example
+
 
 def storage_object(df):
     df = df[df["PlantType"] == "Energy Storage"]
