@@ -85,7 +85,7 @@ def get_subgraph(user_input, graph):
     selected_regions = user_input.split(',')
 
     sub_nodes = { 
-    'All': ['FRCC', 'MIS_AMSO', 'MIS_AR', 'MIS_D_MS', 'MIS_IA', 'MIS_IL', 'MIS_INKY', 
+    'ALL': ['FRCC', 'MIS_AMSO', 'MIS_AR', 'MIS_D_MS', 'MIS_IA', 'MIS_IL', 'MIS_INKY', 
     'MIS_LA', 'MIS_LMI', 'MIS_MAPP', 'MIS_MIDA', 'MIS_MNWI', 'MIS_MO', 'MIS_WOTA', 'MIS_WUMS',
     'NENGREST', 'NENG_CT', 'NENG_ME', 'NY_Z_A', 'NY_Z_B', 'NY_Z_C&E', 'NY_Z_D', 'NY_Z_F', 'NY_Z_G-I', 
     'NY_Z_J', 'NY_Z_K', 'PJM_AP', 'PJM_ATSI', 'PJM_COMD', 'PJM_Dom','PJM_EMAC', 'PJM_PENE', 
