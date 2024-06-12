@@ -119,4 +119,4 @@ def get_subgraph(user_input, graph):
     filtered_edges = [(u, v) for u, v, d in subgraph_nodes.edges(data=True) if d['capacity'] > 0.0]
     subgraph = subgraph_nodes.edge_subgraph(filtered_edges)
 
-    return subgraph
+    return subgraph, selected_nodes
