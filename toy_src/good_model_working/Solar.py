@@ -1,5 +1,6 @@
 import pyomo.environ as pyomo
 from .constants import time_periods
+from collections import defaultdict
 
 class Solar:
     def __init__(self, region_id, solar_data):
@@ -50,25 +51,25 @@ class Solar:
             elif data_type == 'solar_installed_capacity': 
                 
                 for params in parameters: 
-                    installed_capacity = params.get('capacity', 0)
+                    self.installed_capacity = params.get('capacity', 0)
 
             elif data_type == 'solar_gen':
                  
                  for params in parameters:
                     resource_id = str(int(params.get('resource_class', 0)))
                     self.resource_id_profile.append(resource_id)
-                    values = params.get('generation_profile', {})
-
-                    
-                    if values:
-                        max_load = max(values.values())
-                        if max(self.time_periods) != 4380: 
-                            self.gen_profile.update({(resource_id, int(hour)): load / max_load
-                                for hour, load in values.items()
-                                if int(hour) in self.time_periods})
-                        else:
-                            self.gen_profile.update({(resource_id, int(hour)): load / max_load
-                                for hour, load in values.items()})
+                    gen_values = params.get('generation_profile', {})
+                   
+                    if gen_values:
+                        max_load = max(gen_values.values())
+                        # if max(self.time_periods) != 4380: 
+                        #     self.gen_profile.update({(resource_id, int(hour)): load / max_load
+                        #         for hour, load in gen_values.items()
+                        #         if int(hour) in self.time_periods})
+                        # else:
+                        self.gen_profile.update({(resource_id, int(hour)): load / max_load
+                            for hour, load in gen_values.items()
+                            if int(hour) in self.time_periods})
                     else:
                         self.gen_profile = {}
 
@@ -99,36 +100,30 @@ class Solar:
         ## nested dictionary, ex: model.c_solarprofile[s][t]
         ## tuple dictionary, ex: model.c_solarprofile[s,t]
 
-        if self.installed_capacity:
-            model.add_component(
-                self.region_id + '_solarCap', 
-                pyomo.Param(model.src, model.cc, initialize=self.installed_capacity, default=0)
-            )
+        model.add_component(
+            self.region_id + '_solarCap', 
+            pyomo.Param(model.src, model.cc, initialize=self.installed_capacity, default=0)
+        )
 
-       
-        if self.max_capacity: 
-            model.add_component(
-                self.region_id + '_solarMax', 
-                pyomo.Param(model.src, model.cc, initialize=self.max_capacity, default=0)
-            )
+        model.add_component(
+            self.region_id + '_solarMax', 
+            pyomo.Param(model.src, model.cc, initialize=self.max_capacity, default=0)
+        )
 
-        if self.cost:
-            model.add_component( 
-                self.region_id + '_solarCost', 
-                pyomo.Param(model.src, model.cc,  initialize=self.cost, default=0)
-            )
+        model.add_component( 
+            self.region_id + '_solarCost', 
+            pyomo.Param(model.src, model.cc,  initialize=self.cost, default=0)
+        )
 
-        if self.gen_profile: 
-            model.add_component( 
-                self.region_id + '_solarGenProfile', 
-                pyomo.Param(model.src, model.t,initialize=self.gen_profile, default=0)
-            )
+        model.add_component( 
+            self.region_id + '_solarGenProfile', 
+            pyomo.Param(model.src, model.t,initialize=self.gen_profile, default=0)
+        )
 
-        if self.transmission_cost:
-            model.add_component( 
-                self.region_id + '_solarTransCost', 
-                pyomo.Param(model.src, model.cc, initialize=self.transmission_cost, default=0)
-            )        
+        model.add_component( 
+            self.region_id + '_solarTransCost', 
+            pyomo.Param(model.src, model.cc, initialize=self.transmission_cost, default=0)
+        )        
         
 
     def variables(self, model):
@@ -191,33 +186,27 @@ class Solar:
         results = {}
         
         capacity_dict = {}
-        cost_dict ={}
+        cost_dict = {}
 
         trans_var = getattr(model, self.region_id + '_solarTransCost', 0)
 
         if hasattr(model, self.region_id + '_solarNew'): 
             capacity_var = getattr(model, self.region_id + '_solarNew').extract_values()
             
-            for key, value in capacity_var.items(): 
-                
-                if key not in capacity_dict: 
-                    capacity_dict[key] = {}
+            capacity_dict = defaultdict(int)  
 
-                else: 
-                    capacity_dict[key] +=  value
+            for key, value in capacity_var.items():
+                capacity_dict[key] += value 
     
 
         if hasattr(model, self.region_id + '_solarcost'): 
             cost_var = getattr(model, self.region_id + '_solarcost').extract_values()
             trans_cost = trans_var.extract_values()
 
-            for key, value in cost_var.items(): 
-
-                if key not in capacity_dict: 
-                    capacity_cost[key] = {}
-
-                else: 
-                    capacity_cost[key] +=  capacity_dict[key] * (value + trans_cost[key])
+            cost_dict = defaultdict(int)  
+            
+            for key, value in cost_var.items():
+                cost_dict[key] += capacity_dict[key] * (value + trans_cost[key])
 
         results = {
             'capacity': capacity_dict,

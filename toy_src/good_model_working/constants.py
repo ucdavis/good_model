@@ -23,12 +23,20 @@ storage_flow_limit = 0.85
 
 transmission_efficiency = 0.972
 
-## Adjusting time frame for model run
-min_hour = 0
+time_periods = list(range(0,24))
 
-# General time frames: 
-# Annual: 8760
-# 6-mos: 4380
-max_hour = 8760
-
-time_periods = list(range(min_hour,max_hour))
+gen_to_remove = ['Fossil Waste', 
+        # 'Municipal Solid Waste', 
+        # 'Non-Fossil Waste', 
+        'Pumped Storage',
+        'Fuel Cell',
+        'Landfill Gas', 
+        # "Energy Storage", 
+        # "Solar PV", 
+        # "Onshore Wind", 
+        # 'New Battery Storage', 
+        # 'IMPORT', 
+        # 'Tires',
+        'Offshore Wind', 
+        'Solar Thermal'
+        ]

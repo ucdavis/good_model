@@ -1,5 +1,6 @@
 import pyomo.environ as pyomo
 from .constants import time_periods
+from collections import defaultdict
 
 class Wind:
     def __init__(self, region_id, wind_data):
@@ -56,17 +57,13 @@ class Wind:
                 for params in parameters:
                     resource_id = str(int(params.get('resource_class', 0)))
                     self.resource_id_profile.append(resource_id)
-                    values = params.get('generation_profile', {})
+                    gen_values = params.get('generation_profile', {})
                     
-                    if values:
-                        max_load = max(values.values())
-                        if max(self.time_periods) != 4380: 
-                            self.gen_profile.update({(resource_id, int(hour)): load / max_load
-                                for hour, load in values.items()
-                                if int(hour) in self.time_periods})
-                        else:
-                            self.gen_profile.update({(resource_id, int(hour)): load / max_load
-                                for hour, load in values.items()})
+                    if gen_values:
+                        max_load = max(gen_values.values())
+                        self.gen_profile.update({(resource_id, int(hour)): load / max_load
+                            for hour, load in gen_values.items()
+                            if int(hour) in self.time_periods})
                     else:
                         self.gen_profile = {}
 
@@ -90,7 +87,6 @@ class Wind:
                 capacity[first_key] = self.installed_capacity
                 self.installed_capacity = capacity
 
-        # self.gen_profile= {(s, h): value for (s,h), value in self.gen_profile.items() if h <= 8760}
 
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
@@ -98,35 +94,30 @@ class Wind:
         ## nested dictionary, ex: model.c_windprofile[w][t]
         ## tuple dictionary, ex: model.c_windprofile[w,t]
 
-        if self.installed_capacity:
-            model.add_component(
-                self.region_id + '_windCap',
-                pyomo.Param(model.wrc, model.cc, initialize=self.installed_capacity, default=0)
-            )
- 
-        if self.max_capacity: 
-            model.add_component(
-                self.region_id + '_windMax',
-                pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, default=0)
-            )
-        
-        if self.cost: 
-            model.add_component(
-                self.region_id + '_windCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.cost, default=0)
-            )
-  
-        if self.transmission_cost: 
-            model.add_component(
-                self.region_id + '_windTransCost',
-                pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, default=0)
-            )
+        model.add_component(
+            self.region_id + '_windCap',
+            pyomo.Param(model.wrc, model.cc, initialize=self.installed_capacity, default=0)
+        )
 
-        if self.gen_profile: 
-            model.add_component(
-                self.region_id + '_windGenProfile',
-                pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, default=0)
-            )
+        model.add_component(
+            self.region_id + '_windMax',
+            pyomo.Param(model.wrc, model.cc, initialize=self.max_capacity, default=0)
+        )
+    
+        model.add_component(
+            self.region_id + '_windCost',
+            pyomo.Param(model.wrc, model.cc, initialize=self.cost, default=0)
+        )
+
+        model.add_component(
+            self.region_id + '_windTransCost',
+            pyomo.Param(model.wrc, model.cc, initialize=self.transmission_cost, default=0)
+        )
+
+        model.add_component(
+            self.region_id + '_windGenProfile',
+            pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, default=0)
+        )
 
             
     def variables(self, model):
@@ -188,31 +179,25 @@ class Wind:
         capacity_dict = {}
         cost_dict ={}
 
-        trans_var = getattr(model, self.region_id + '_windTransCost',0)
+        trans_var = getattr(model, self.region_id + '_windTransCost', 0)
 
         if hasattr(model, self.region_id + '_windrNew'): 
             capacity_var = getattr(model, self.region_id + '_windNew').extract_values()
-            
-            for key, value in capacity_var.items(): 
-                
-                if key not in capacity_dict: 
-                    capacity_dict[key] = {}
+        
+            capacity_dict = defaultdict(int)  
 
-                else: 
-                    capacity_dict[key] =  value
+            for key, value in capacity_var.items():
+                capacity_dict[key] += value 
     
 
         if hasattr(model, self.region_id + '_windcost'): 
             cost_var = getattr(model, self.region_id + '_windcost').extract_values()
             trans_cost = trans_var.extract_values()
 
-            for key, value in cost_var.items(): 
-
-                if key not in capacity_dict: 
-                    capacity_cost[key] = {}
-
-                else: 
-                    capacity_cost[key] +=  capacity_dict[key] * (value + trans_cost[key])
+            cost_dict = defaultdict(int)  
+            
+            for key, value in cost_var.items():
+                cost_dict[key] += capacity_dict[key] * (value + trans_cost[key]) 
 
         results = {
             'capacity': capacity_dict,
