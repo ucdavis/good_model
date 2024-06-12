@@ -1,6 +1,0 @@
-<<<<<<< HEAD
-*.json filter=lfs diff=lfs merge=lfs -text
-toy_src/good_model_results_051424.pickle filter=lfs diff=lfs merge=lfs -text
-=======
-/Model[[:space:]]Input/input_graph.json filter=lfs diff=lfs merge=lfs -text
->>>>>>> origin/main
