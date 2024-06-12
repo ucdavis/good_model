@@ -25,9 +25,6 @@ annual_total_mwh_baseline = 4120144619
 # total co2 emissions 2021: 1.6 billion metric tons
 annual_emissions_baseline = 1.6 * 1e09
 
-gen_emissions_inputs = {}
-
-
 
 ##
 
@@ -66,6 +63,10 @@ def get_annual_gen_mix(results):
     for region, obj_data in nodes.items():
         gen_dict = obj_data.get('generator', {})
 
+        solar_dict = obj_data.get('solar', {})
+
+        wind_dict = obj_data.get('wind', {})
+
         if gen_dict:
  
             capacity_dict = gen_dict.get('capacity', {})
@@ -78,6 +79,33 @@ def get_annual_gen_mix(results):
                 for capacity in dispatch_profile.values():
 
                     fuel_mix[gen_type] += capacity
+
+        if solar_dict: 
+
+            solar_capacity_dict = solar_dict.get('capacity', {})
+
+            # total_solar_capacity = 0
+            # for key, value in solar_capacity_dict.items(): 
+
+            #     total_solar_capacity += value
+
+            total_solar_capacity = sum(solar_capacity_dict.values())
+
+            if 'Solar' not in fuel_mix: 
+                fuel_mix['Solar'] = 0
+
+            fuel_mix['Solar'] = total_solar_capacity
+
+        if wind_dict: 
+
+            wind_capacity_dict = wind_dict.get('capacity', {})
+
+            total_wind_capacity = sum(wind_capacity_dict.values())
+
+            if 'Wind' not in fuel_mix: 
+                fuel_mix['Wind'] = 0
+
+            fuel_mix['Wind'] = total_wind_capacity
 
     return fuel_mix
 
@@ -166,6 +194,7 @@ def compare_annual_mix_to_baseline(annual_mix):
 
     print(compared_df.to_string())
 
+
 def get_annual_emissions(results): 
 
     nodes = results['nodes']
@@ -187,9 +216,5 @@ def get_annual_emissions(results):
                 for capacity in dispatch_profile.values():
 
                     fuel_mix[gen_type] += capacity
-
-
-    
-
 
     return emissions_total

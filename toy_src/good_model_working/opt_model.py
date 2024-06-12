@@ -8,8 +8,9 @@ import time
 
 
 class Opt_Model:
-    def __init__(self, model_data):
+    def __init__(self, model_data, solver_name):
         
+        self.solver_name = solver_name
         self.sets = model_data.get('sets', {})
         self.graph = model_data.get('graph', {})
         self.region_list = self.sets.get('region', [])
@@ -29,7 +30,7 @@ class Opt_Model:
             self.cons_deactivate = model_data.get('contraint_deactivation', [])   
 
         # Check for non-empty graph and periods, then build
-        if self.graph and self.time_periods and self.sets:
+        if self.graph:
             self.model = pyomo.ConcreteModel()
             self.build()
 
@@ -42,11 +43,11 @@ class Opt_Model:
         self.build_model()
         self.timer.toc('Model built')
 
-        self.timer.toc('Model solving...')
-        self.solve_model()
-        self.timer.toc('Model solved')
+        # self.timer.toc('Model solving...')
+        # self.solve_model()
+        # self.timer.toc('Model solved')
 
-        self.get_results()
+        # self.get_results()
         
     def build_grid(self):
 
@@ -171,51 +172,52 @@ class Opt_Model:
             c_solar_profile = getattr(self.model, r + '_solarGenProfile', 0)
             x_solar_var = getattr(self.model, r + '_solarNew', None)
             
-            solar_indices = None
+            valid_solar_indices = None
             if c_solar_profile != 0:
-                solar_indices = set([s for s,_ in c_solar_profile])
+                valid_solar_indices = set([s for s,_ in c_solar_profile])
             
             c_wind_cap = getattr(self.model, r + '_windCap', 0)
             c_wind_profile = getattr(self.model, r + '_windGenProfile', 0)
             x_wind_var = getattr(self.model, r + '_windNew', None)
             
-            wind_indices = None
+            valid_wind_indices = None
             if c_wind_profile != 0: 
-                wind_indices = set([w for w, _ in c_wind_profile])
+                valid_wind_indices = set([w for w, _ in c_wind_profile])
         
             x_stor_in = getattr(self.model, r + '_storCharge', None)
             x_stor_out = getattr(self.model, r + '_storDischarge', None)
 
             c_load = getattr(self.model, r + '_load', None)
             x_generation_var = getattr(self.model, r + '_generation', None)
-            
+            valid_gen_types = None
+            if x_generation_var is not None:  
+                valid_gen_types = set([g for g,_ in x_generation_var])       
+                  
             for t in self.model.t: 
 
                 solar_terms = 0
-                if solar_indices is not None: 
+                if valid_solar_indices is not None: 
                     solar_terms = pyomo.quicksum(
                         ((c_solar_cap[s,c] + x_solar_var[s, c]) * c_solar_profile[s, t])
-                        for s in solar_indices
+                        for s in valid_solar_indices
                         for c in self.model.cc
                     )
             
                 wind_terms = 0 
-                if wind_indices is not None: 
+                if valid_wind_indices is not None: 
                     wind_terms = pyomo.quicksum(
                         ((c_wind_cap[w,c] + x_wind_var[w, c]) * c_wind_profile[w, t])
-                        for w in wind_indices
+                        for w in valid_wind_indices
                         for c in self.model.cc
                     )
 
-
                 generation_terms = 0 
-                if x_generation_var is not None: 
+                if valid_gen_types is not None: 
                     generation_terms = pyomo.quicksum(
                         x_generation_var[g, t]
-                        for g in self.model.gen
+                        for g in valid_gen_types
                     )
 
-                
                 storage_terms = 0
                 if x_stor_out is not None: 
                     storage_terms = (x_stor_out[t] - x_stor_in[t])
@@ -226,17 +228,23 @@ class Opt_Model:
 
                 export_terms = 0
                 for o in self.model.o:
-                    export_link = f'{o}_{r}'
-                    if hasattr(self.model, export_link + '_trans'):
-                        export_terms = (getattr(self.model, export_link + '_trans')[t] 
-                            * getattr(self.model, export_link + '_efficiency')
-                        )
+                    if o == r: 
+                        export_terms = 0
+                    else:  
+                        export_link = f'{o}_{r}'
+                        if hasattr(self.model, export_link + '_trans'):
+                            export_terms = (getattr(self.model, export_link + '_trans')[t] 
+                                * getattr(self.model, export_link + '_efficiency')
+                            )
 
                 import_terms = 0
                 for p in self.model.p:
-                    import_link = f'{r}_{p}'
-                    if hasattr(self.model, import_link + '_trans'):
-                        import_terms = getattr(self.model, import_link + '_trans')[t]
+                    if p == r: 
+                        import_terms = 0
+                    else:
+                        import_link = f'{r}_{p}'
+                        if hasattr(self.model, import_link + '_trans'):
+                            import_terms = getattr(self.model, import_link + '_trans')[t]
                 
                 cons_expr =  (
                     solar_terms 
@@ -291,9 +299,9 @@ class Opt_Model:
         
             print(f'{constraint} constraints deactivated')
             
-    def solve_model(self, solver_name="appsi_highs"):
+    def solve_model(self):
         
-        solver = pyomo.SolverFactory(solver_name)
+        solver = pyomo.SolverFactory(self.solver_name)
         self.results = solver.solve(self.model, tee=True)
 
     def get_results(self): 
