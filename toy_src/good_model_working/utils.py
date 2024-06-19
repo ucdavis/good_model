@@ -23,22 +23,23 @@ from .constants import time_periods
 # variables used in the model:
 
 gen_to_remove = [
-        'Fossil Waste', 
-        # 'Municipal Solid Waste', 
-        'Non-Fossil Waste', 
+        #'Fossil Waste', 
+        #'Municipal Solid Waste', 
+        #'Non-Fossil Waste', 
         'Pumped Storage',
         'Fuel Cell',
         'Landfill Gas', 
-        # "Energy Storage", 
+        #"Energy Storage", 
         # "Solar PV", 
         # "Onshore Wind", 
         # 'New Battery Storage', 
         # 'IMPORT', 
-        # 'Tires',
+        #'Tires',
         'Offshore Wind', 
         'Solar Thermal'
         ]
 
+regions_limited_hydro_capacity = ['BANC', 'CALN', 'SCE', 'SDGE', 'LADW', 'IID']
 
 def get_model_statistcs(model): 
 
@@ -114,28 +115,77 @@ def get_subgraph(user_input, graph):
     'ERC_REST', 'ERC_WEST', 'WECC_AZ', 'WECC_CO', 'WECC_ID', 'WECC_IID', 'WECC_MT', 'WECC_NM', 
     'WECC_NNV', 'WECC_PNW', 'WECC_SCE', 'WECC_SNV', 'WECC_UT', 'WECC_WY', 'WEC_BANC', 'WEC_CALN', 
     'WEC_LADW', 'WEC_SDGE'],
-    'Florida': ['FRCC'], 
+    'FLORIDA': ['FRCC'], 
     'MISO' : ['MIS_AMSO', 'MIS_AR', 'MIS_D_MS', 'MIS_IA', 'MIS_IL', 'MIS_INKY', 
     'MIS_LA', 'MIS_LMI', 'MIS_MAPP', 'MIS_MIDA', 'MIS_MNWI', 'MIS_MO', 'MIS_WOTA', 'MIS_WUMS'], 
     'NEW_ENGLAND': ['NENGREST', 'NENG_CT', 'NENG_ME'],
     'NYISO': ['NY_Z_A', 'NY_Z_B', 'NY_Z_C&E', 'NY_Z_D', 'NY_Z_F', 'NY_Z_G-I', 'NY_Z_J', 'NY_Z_K'],
     'PJM': ['PJM_AP', 'PJM_ATSI', 'PJM_COMD', 'PJM_Dom','PJM_EMAC', 'PJM_PENE', 'PJM_SMAC', 'PJM_WMAC', 'PJM_West'],
-    'SSP': ['SPP_N', 'SPP_NEBR', 'SPP_SPS', 'SPP_WAUE', 'SPP_WEST', 'SPP_KIAM'],
+    'SPP': ['SPP_N', 'SPP_NEBR', 'SPP_SPS', 'SPP_WAUE', 'SPP_WEST', 'SPP_KIAM'],
     'SOUTHEAST': ['S_C_KY', 'S_C_TVA', 'S_D_AECI', 'S_SOU', 'S_VACA'],
     'ERCOT': ['ERC_FRNT', 'ERC_GWAY', 'ERC_PHDL', 'ERC_REST', 'ERC_WEST'],
     'WECC': ['WECC_AZ', 'WECC_CO', 'WECC_ID', 'WECC_IID', 'WECC_MT', 'WECC_NM', 'WECC_NNV', 'WECC_PNW', 'WECC_SCE', 
     'WECC_SNV', 'WECC_UT', 'WECC_WY', 'WEC_BANC', 'WEC_CALN', 'WEC_LADW', 'WEC_SDGE']
     }
 
-    selected_nodes = []
-    for region in selected_regions:
-        region = region.strip().upper()
-        if region in sub_nodes:
-            selected_nodes.extend(sub_nodes[region])
+    user_selected_nodes = [
+        node for region in selected_regions 
+        for node in sub_nodes.get(region.strip().upper(), [])
+    ]
 
-    subgraph_nodes = graph.subgraph(selected_nodes)
+    subgraph_nodes = graph.subgraph(user_selected_nodes)
 
-    filtered_edges = [(u, v) for u, v, d in subgraph_nodes.edges(data=True) if d['capacity'] > 0.0]
-    subgraph = subgraph_nodes.edge_subgraph(filtered_edges)
+    valid_nodes = []
+    for id, data in subgraph_nodes.nodes.items(): 
+        if data: 
+            valid_nodes.append(id)
+
+    subgraph_valid_nodes = graph.subgraph(valid_nodes)
+
+    if len(subgraph_valid_nodes.nodes.keys()) > 1: 
+        filtered_edges = [(u, v) for u, v, d in subgraph_valid_nodes.edges(data=True) if d['capacity'] > 0.0]
+        subgraph = subgraph_valid_nodes.edge_subgraph(filtered_edges)
+        selected_nodes = list(subgraph.nodes.keys())
+
+    else: 
+        subgraph = subgraph_valid_nodes
+        selected_nodes = list(subgraph_valid_nodes.nodes.keys())
 
     return subgraph, selected_nodes
+
+
+def get_generator_capacity(graph): 
+
+    capacity_dict = {'hydro': 0, 'natural_gas': 0, 'coal': 0, 'misc': 0}
+    for region, region_data in graph.nodes.items(): 
+        data = region_data.get('dependents', [])
+        for data_type in data: 
+            data_class = data_type.get('data_class', '')
+            if data_class ==  'generator': 
+                gen_data = data_type.get('parameters', [])
+                for param in gen_data:
+                    params = param.get('parameters', [])
+                    for param in params: 
+                        gen_type = param.get('gen_type', '')
+                        if 'Hydro' in gen_type: 
+                            gen_values = param.get('values', [])
+                            for val in gen_values: 
+                                capacity = val.get('capacity', 0)
+                                capacity_dict['hydro'] += capacity
+                        elif 'NaturalGas' in gen_type: 
+                            gen_values = param.get('values', [])
+                            for val in gen_values: 
+                                capacity = val.get('capacity', 0)
+                                capacity_dict['natural_gas'] += capacity
+                        elif 'Coal' in gen_type: 
+                            gen_values = param.get('values', [])
+                            for val in gen_values: 
+                                capacity = val.get('capacity', 0)
+                                capacity_dict['coal'] += capacity
+                        else: 
+                            gen_values = param.get('values', [])
+                            for val in gen_values: 
+                                capacity = val.get('capacity', 0)
+                                capacity_dict['misc'] += capacity
+
+    return capacity_dict

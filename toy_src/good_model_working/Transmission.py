@@ -36,7 +36,6 @@ class Transmission:
         )
 
     def objective(self, model):
-        # Simplify the objective function to accumulate transmission costs correctly
 
         tranmission_cost_term = 0
 

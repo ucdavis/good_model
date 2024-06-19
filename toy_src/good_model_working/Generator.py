@@ -1,12 +1,13 @@
 import pyomo.environ as pyomo
 from .utils import gen_to_remove
 
+from .constants import hydro_capacity_limit
+
 class Generator:
     def __init__(self, region_id, generators):
         self.region_id = region_id
         self.gen_cost = {}
         self.gen_capacity = {}
-        self.gen_to_remove = gen_to_remove
         
         for data in generators:     
             cost_weight = {}
@@ -28,10 +29,18 @@ class Generator:
                 else: 
                     self.gen_capacity[gen_id] += capacity
             
-        self.gen_cost = {key: value for key, value in self.gen_cost.items() if not any(substring in key for substring in self.gen_to_remove)}
-        self.gen_capacity = {key: value for key, value in self.gen_capacity.items() if not any(substring in key for substring in self.gen_to_remove)}
+        self.gen_cost = {key: value for key, value in self.gen_cost.items() if not any(substring in key for substring in gen_to_remove)}
+        self.gen_capacity = {key: value for key, value in self.gen_capacity.items() if not any(substring in key for substring in gen_to_remove)}  
+        
+        self.gen_capacity = {
+            gen: 
+            (capacity * hydro_capacity_limit
+                if 'Hydro' in gen
+                else capacity)
+            for gen, capacity in self.gen_capacity.items()
+        }
+
         self.valid_gen_types = [g for g in self.gen_capacity if self.gen_capacity[g] > 0]
-        self.valid_gen_types_2 = set(self.gen_cost.keys())
 
     def parameters(self, model):
 

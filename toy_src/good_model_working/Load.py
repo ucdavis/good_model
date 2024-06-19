@@ -16,8 +16,7 @@ class Load:
                 self.load = param.get('value', {})
 
         self.load = {int(key): value for key, value in self.load.items()
-             if int(key) <= max(self.time_periods)}
-
+            if int(key) in self.time_periods}
 
     def parameters(self, model):
 

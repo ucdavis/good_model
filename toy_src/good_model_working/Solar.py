@@ -62,11 +62,6 @@ class Solar:
                    
                     if gen_values:
                         max_load = max(gen_values.values())
-                        # if max(self.time_periods) != 4380: 
-                        #     self.gen_profile.update({(resource_id, int(hour)): load / max_load
-                        #         for hour, load in gen_values.items()
-                        #         if int(hour) in self.time_periods})
-                        # else:
                         self.gen_profile.update({(resource_id, int(hour)): load / max_load
                             for hour, load in gen_values.items()
                             if int(hour) in self.time_periods})

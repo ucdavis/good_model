@@ -19,7 +19,6 @@ class Opt_Model:
         self.wind_ids = self.sets.get('wind_rc', [])
         self.cost_class_ids = self.sets.get('cost_class', [])
         self.gen_type = self.sets.get('gen_type', [])
-        self.gen_to_remove = model_data.get('gen_to_remove',[])
 
         self.test_nodes = model_data.get('test_nodes', False)
         if self.test_nodes: 
@@ -192,8 +191,8 @@ class Opt_Model:
             x_generation_var = getattr(self.model, r + '_generation', None)
             valid_gen_types = None
             if x_generation_var is not None:  
-                valid_gen_types = set([g for g,_ in x_generation_var])       
-                  
+                valid_gen_types = set([g for g,_ in x_generation_var])  
+
             for t in self.model.t: 
 
                 solar_terms = 0
@@ -203,7 +202,7 @@ class Opt_Model:
                         for s in valid_solar_indices
                         for c in self.model.cc
                     )
-            
+
                 wind_terms = 0 
                 if valid_wind_indices is not None: 
                     wind_terms = pyomo.quicksum(
@@ -227,27 +226,22 @@ class Opt_Model:
                 if c_load is not None:
                     demand_terms = (c_load[t])
 
-                export_terms = 0
-                for o in self.model.o:
-                    if o == r: 
-                        export_terms = 0
-                    else:  
-                        export_link = f'{o}_{r}'
-                        if hasattr(self.model, export_link + '_trans'):
-                            export_terms = (getattr(self.model, export_link + '_trans')[t] 
-                                * getattr(self.model, export_link + '_efficiency')
-                            )
-
                 import_terms = 0
                 for p in self.model.p:
-                    if p == r: 
-                        import_terms = 0
-                    else:
-                        import_link = f'{r}_{p}'
-                        if hasattr(self.model, import_link + '_trans'):
-                            import_terms = getattr(self.model, import_link + '_trans')[t]
-                
-                cons_expr =  (
+                    import_link = f'{r}_{p}'
+                    if hasattr(self.model, import_link + '_trans'):
+                        import_terms += getattr(self.model, import_link + '_trans')[t]
+
+                export_terms = 0
+                for o in self.model.o:
+                    export_link = f'{o}_{r}'
+                    if hasattr(self.model, export_link + '_trans'):
+                        export_terms += (getattr(self.model, export_link + '_trans')[t] 
+                            * getattr(self.model, export_link + '_efficiency')
+                        )
+
+                                
+                cons_expr = (
                     solar_terms 
                     + wind_terms 
                     + storage_terms 
