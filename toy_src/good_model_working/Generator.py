@@ -112,11 +112,9 @@ class Generator:
             dispatch_cost = getattr(model, self.region_id + '_gencost').extract_values()
 
             for gen_type, profile in region_capacity.items():
-
                 cost = dispatch_cost[gen_type]
 
                 for hour, capacity in profile.items():
-                     
                     region_cost[gen_type] = cost * capacity
           
         results = {

@@ -15,12 +15,12 @@ class Transmission:
 
         model.add_component( 
             self.trans_link + '_transCost', 
-            pyomo.Param(initialize=self.cost)
+            pyomo.Param(initialize=self.cost, default=0)
         )
 
         model.add_component(
             self.trans_link + '_transCap', 
-            pyomo.Param(initialize=self.capacity)
+            pyomo.Param(initialize=self.capacity,default=0)
         ) 
        
         model.add_component(
@@ -67,8 +67,6 @@ class Transmission:
 
         for key, value in trans_capacity.items(): 
             capacity_dict[key] = value
-            # if self.trans_link not in cost_dict:
-            #     cost_dict[self.trans_link] = 0  
             cost_dict += trans_cost * value
 
         results = {

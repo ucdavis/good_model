@@ -30,8 +30,8 @@ gen_to_remove = [
         'Fuel Cell',
         'Landfill Gas', 
         #"Energy Storage", 
-        # "Solar PV", 
-        # "Onshore Wind", 
+        "Solar PV", 
+        "Onshore Wind", 
         # 'New Battery Storage', 
         # 'IMPORT', 
         #'Tires',
@@ -63,14 +63,14 @@ def get_total_generator_count(model):
 
     print(f'Total generators: {gen_count/hours}')
 
-def write_model(model, version): 
+def write_model(model, **kwargs): 
    
     today = date.today()
 
-    file = f'lp_file_{today}_model_run_{version}.lp'
+    file = f'model_{today}_{kwargs.get('version',0)}.{kwargs.get('file_type','lp')}'
     path = '/Users/peterambiel/Desktop/good_model/output_logs'
     filename = os.path.join(path, file)
-    model.write(filename, io_options = {'symbolic_solver_labels': True})
+    model.write(filename, io_options = {'symbolic_solver_labels': kwargs.get('io_options', True)})
 
 
 def create_graph(filepath): 
