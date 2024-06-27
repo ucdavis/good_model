@@ -173,7 +173,7 @@ The model structure reflects a node-link graph where the nodes are each region, 
 
 The objects are accessed by the optimization module (`opt_model.py`). The class parses the data, instantiates the model, creates the region and transmission objects, collects the parameters, variables, objectives, and constraints created in the objects, solves the model, and returns the results (Figure 1).
 
-![GOOD Model structure diagram](URL_to_diagram_image)
+![GOOD Model structure diagram](good_structure.png)
 
 RegionNodes and Transmission are the primary objects through which the other objects are accessed. Mirroring the mathematical formulation and the physical representation of the grid, each region hosts generators, solar, wind, storage, and load. Pyomo model components (sets, parameters, variables, objective, constraints) are created for each RegionNode by the corresponding object – Generator, Solar, Wind, Storage, or Load. For example, the Generator class handles the generator capacity and cost data translating each into parameters, the generation decision variable, the generation term for the objective function, and generation-specific constraints. A similar process is completed for the Link objects.
 
