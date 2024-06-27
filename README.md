@@ -5,7 +5,6 @@
 2. [Data](#data)
 3. [Model Structure](#model-structure)
 4. [Mathematical Formulation](#mathematical-formulation)
-5. [Appendix](#appendix)
 
 ## Background
 <details>
@@ -92,7 +91,7 @@ This file contains all information related to the parameters *c<sup>transCost</s
 There are several different columns across the two datasets that provide indicators for what type of fuel a power plant uses to generate electricity. This isn’t entirely straightforward because a power plant can have multiple units or generators, and they may not always use the same fuel. For example, you could have a coal plant that has an oil generator backup (since this can be used to provide on-site power, or to even assist in the startup of the primary boiler). For the most part, the PLPRMFL provides the best sense of this, as it designates the dominant fuel as the primary fuel type for a power plant. However, there are sometimes reporting exemptions for power plants under a certain size, or if they have been exempted from emissions reporting through legacy policies - leading to a few instances of blank fuel types in the eGRID dataset. We can fix these by examining the plant categories in the NEEDS dataset and parsing in the correct fuel type. 
 
 #### Fixing fuel costs
-For all thermal generators, fuel costs (‘dispatch costs’) are not directly included within the dataset. They are calculated by combining total annual fuel cost (fuelcosttotal, \$), total annual fuel used (fuelusedtotal, MMBtu), and heat rate (HeatRate, MMBtu/MWh) to produce a \$/MWh:
+For all thermal generators, fuel costs (‘dispatch costs’) are not directly included within the dataset. They are calculated by combining total annual fuel cost, total annual fuel used, and heat rate to produce a cost per MWh.
 
 ![Fuel Cost Equation](https://latex.codecogs.com/svg.image?%7Bfuelcost%7D=%5Cleft(%5Cfrac%7BFuelCostTotal%7D%7BFuelUsedTotal%7D%5Cright)%5Ctimes%7BHeatRate%7D)
 
