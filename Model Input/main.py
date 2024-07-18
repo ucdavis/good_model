@@ -19,7 +19,7 @@ Plant_short_fixed_fuelC = assign_fuel_costs(Plant_short)
 Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC)
 
 # aggregation of power plants
-Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 5, 1, 1, 1)
+Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 3, 1, 1, 1)
 # Aggregating the power plants
 Plants_ungroup,  Plants_group = cluster_and_aggregate(Plants_community)
 
