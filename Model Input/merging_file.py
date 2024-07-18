@@ -276,15 +276,15 @@ def transmission_func(Input_df):
 def cluster_and_aggregate(df):
     # Merging identical plants in a region from the group perspective
     # Sort the DataFrame to ensure proper ordering within groups
-    df = df.sort_values(by=["RegionName", "PlantType", "FuelType", "community"])
-    df['community_number'] = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).cumcount() + 1
-    df.loc[:, 'gen_type'] = df['PlantType'] + '_' + df['FuelType'] + '_' + df['community_number'].astype(str)
+    # df = df.sort_values(by=["RegionName", "PlantType", "FuelType", "community"])
+    # df['community_number'] = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).cumcount() + 1
+    df.loc[:, 'gen_type'] = df['PlantType'] + '_' + df['FuelType'] + '_' + df['community'].astype(str)
     # Define a function to compute the weighted average
     def weighted_avg(df, value_col, weight_col):
         return (df[value_col] * df[weight_col]).sum() / df[weight_col].sum()
 
     # Assuming df is your DataFrame
-    result = df.groupby(["RegionName", "PlantType", "FuelType", "community_number"]).apply(
+    result = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).apply(
         lambda x: pd.Series({
             "Capacity": x["Capacity"].sum(),
             "FuelCost[$/MWh]": weighted_avg(x, "FuelCost[$/MWh]", "Capacity"),
