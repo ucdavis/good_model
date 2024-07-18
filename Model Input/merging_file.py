@@ -274,48 +274,31 @@ def transmission_func(Input_df):
 
 
 def cluster_and_aggregate(df):
-    # df = Plants_community.copy()
-    # Identify rows with NaN values
-    df = (df.groupby(["RegionName", "PlantType", "FuelType", "Fuel_VOM_Cost", "PLCO2RTA"])
-          [["FossilUnit", "Capacity", "FuelCost[$/MWh]", "FuelCostTotal", 'VOMCostTotal', "NERC", "PLNOXRTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLPMTRO", "community", "GroupID"]]
-          .agg({
-        "Capacity": 'sum',
-        "FuelCost[$/MWh]": 'mean',
-        "FuelCostTotal": 'mean',
-        "VOMCostTotal": 'mean',
-        "PLNOXRTA": 'mean',
-        "PLSO2RTA": 'mean',
-        "PLCH4RTA": 'mean',
-        "PLN2ORTA": 'mean',
-        "PLPMTRO": 'mean',
-        "community": 'first',
-        "NERC" : "first",
-        "FossilUnit" : "first",
-        "GroupID": 'mean'
-    }).reset_index(drop=False))
-
-    df.loc[:, 'community_number'] = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).ngroup()
-
-    # Ensure community_number is from 1 within each region
-    df['community_number'] = df.groupby("RegionName")['community_number'].transform(lambda x: x - x.min() + 1)
+    # Merging identical plants in a region from the group perspective
+    # Sort the DataFrame to ensure proper ordering within groups
+    df = df.sort_values(by=["RegionName", "PlantType", "FuelType", "community"])
+    df['community_number'] = df.groupby(["RegionName", "PlantType", "FuelType", "community"]).cumcount() + 1
     df.loc[:, 'gen_type'] = df['PlantType'] + '_' + df['FuelType'] + '_' + df['community_number'].astype(str)
-    df.loc[:, 'GroupID'] = df.groupby(["RegionName", "PlantType", "FuelType", "gen_type"]).ngroup()
-    result = df.groupby(["RegionName", "PlantType", "FuelType", "community_number"])[
-        ["FossilUnit", "Capacity", "FuelCost[$/MWh]", "FuelCostTotal", 'VOMCostTotal', 'Fuel_VOM_Cost', "NERC", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "PLPMTRO", "GroupID"]
-    ].agg({
-        "Capacity": 'sum',
-        "FuelCost[$/MWh]": 'mean',
-        "FuelCostTotal": 'mean',
-        "VOMCostTotal": 'mean',
-        "Fuel_VOM_Cost": 'mean',
-        "PLNOXRTA": 'mean',
-        "PLSO2RTA": 'mean',
-        "PLCO2RTA": 'mean',
-        "PLCH4RTA": 'mean',
-        "PLN2ORTA": 'mean',
-        "PLPMTRO": 'mean',
-        "GroupID": 'mean'
-    }).reset_index()
+    # Define a function to compute the weighted average
+    def weighted_avg(df, value_col, weight_col):
+        return (df[value_col] * df[weight_col]).sum() / df[weight_col].sum()
+
+    # Assuming df is your DataFrame
+    result = df.groupby(["RegionName", "PlantType", "FuelType", "community_number"]).apply(
+        lambda x: pd.Series({
+            "Capacity": x["Capacity"].sum(),
+            "FuelCost[$/MWh]": weighted_avg(x, "FuelCost[$/MWh]", "Capacity"),
+            "FuelCostTotal": weighted_avg(x, "FuelCostTotal", "Capacity"),
+            "VOMCostTotal": weighted_avg(x, "VOMCostTotal", "Capacity"),
+            "Fuel_VOM_Cost": weighted_avg(x, "Fuel_VOM_Cost", "Capacity"),
+            "PLNOXRTA": weighted_avg(x, "PLNOXRTA", "Capacity"),
+            "PLSO2RTA": weighted_avg(x, "PLSO2RTA", "Capacity"),
+            "PLCO2RTA": weighted_avg(x, "PLCO2RTA", "Capacity"),
+            "PLCH4RTA": weighted_avg(x, "PLCH4RTA", "Capacity"),
+            "PLN2ORTA": weighted_avg(x, "PLN2ORTA", "Capacity"),
+            "PLPMTRO": weighted_avg(x, "PLPMTRO", "Capacity"),
+        })
+    ).reset_index()
 
     return df, result
 
@@ -341,7 +324,7 @@ def haversine_distance_miles(lat1, lon1, lat2, lon2):
 
 
 def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_distance, resolution, heatrate_weight, emission_weight, cost_weight):
-
+    # df = Plant_short_fixed_Em.copy()
     a = ["Solar", "Wind", "EnerStor", "Hydro"]
     dispatch_df = df[~df["FuelType"].isin(a)]
     nondispatch_df = df[df["FuelType"].isin(a)]
@@ -357,11 +340,10 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
         "PLCH4RTA": 'mean',
         "PLN2ORTA": 'mean',
         "PLPMTRO": 'mean',
-        "GroupID": 'mean'
+        "StateName": 'first',
     }).reset_index(drop=False)
     nondispatch_df["community"] = 0
-    
-    
+
     unique_regions = dispatch_df['RegionName'].unique()
 
     all_regions_clusters = {}
@@ -427,18 +409,12 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
                 links_filtered.append(link)
         graph = nx.node_link_graph({'nodes': nodes, 'links': links_filtered})
 
-
         communities = list(nx.community.greedy_modularity_communities(
                 graph, weight='weighted_distance', resolution=resolution
             ))
 
-        # communities = list(nx.community.k_clique_communities(graph, 2))
-        # communities = list(nx.community.label_propagation_communities(graph))
-
         community_map = {}
         for community_number, community in enumerate(communities):
-            # print(community_number)
-            # print(community)
             for node in community:
                 community_map[node] = community_number
 
@@ -466,6 +442,7 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
         nondispatch_df.loc[nondispatch_df["FuelType"] == "Wind", "community"] = nondispatch_df_cn_wind
         nondispatch_df.loc[nondispatch_df["FuelType"] == "Solar", "community"] = nondispatch_df_cn_solar
         nondispatch_df.loc[nondispatch_df["FuelType"] == "EnerStor", "community"] = nondispatch_df_cn_storage
+
         df = pd.concat([dispatch_df, nondispatch_df], axis=0)
     return df, all_regions_clusters
 
@@ -701,7 +678,7 @@ def gen_object(df):
         community = row.iloc[3]  # Fourth column contains the community number
         cost = row.iloc[5]  # Tenth column contains the Fuel and VOM Cost
         capacity = row.iloc[4]  # Seventh column contains the generator capacity
-        group_id = row.iloc[15]  # Seventeenth column contains the group ID
+        # group_id = row.iloc[15]  # Seventeenth column contains the group ID
         gen_type = f'{plant_type}_{fuel_type}_{community}'
 
         # Check if the region already exists in gen_example
@@ -719,7 +696,7 @@ def gen_object(df):
                                         gen_param['values'].append({
                                             'cost': cost,
                                             'capacity': capacity,
-                                            'group_id': group_id
+                                            'group_id': community
                                         })
                                         generator_exists = True
                                         break
@@ -729,7 +706,7 @@ def gen_object(df):
                                         'values': [{
                                             'cost': cost,
                                             'capacity': capacity,
-                                            'group_id': group_id
+                                            'group_id': community
                                         }]
                                     })
                                 region_exists = True
@@ -748,7 +725,7 @@ def gen_object(df):
                             'values': [{
                                 'cost': cost,
                                 'capacity': capacity,
-                                'group_id': group_id
+                                'group_id': community
                             }]
                         }]
                     }]
