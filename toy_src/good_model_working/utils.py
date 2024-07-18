@@ -67,7 +67,7 @@ def write_model(model, **kwargs):
    
     today = date.today()
 
-    file = f'model_{today}_{kwargs.get('version',0)}.{kwargs.get('file_type','lp')}'
+    file = f"model_{today}_{kwargs.get('version',0)}.{kwargs.get('file_type','lp')}"
     path = '/Users/peterambiel/Desktop/good_model/output_logs'
     filename = os.path.join(path, file)
     model.write(filename, io_options = {'symbolic_solver_labels': kwargs.get('io_options', True)})

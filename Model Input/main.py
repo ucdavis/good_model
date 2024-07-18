@@ -7,6 +7,7 @@ from merging_file import (merging_data, assign_fuel_costs, cluster_plants, adjus
                           convert_keys_to_string, merge_dictionaries_and_format)
 import json
 import numpy as np
+import pickle
 # %% Loading Input Data
 (Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity,
  Wind_capital_cost, Solar_regional_capacity, Solar_generation_profile, Solar_capital_cost_photov, Solar_capacity_factor, Regional_Cost, Unit_Cost) = load_data()
@@ -14,13 +15,11 @@ import numpy as np
 Plant_short = merging_data(Plant, Parsed)
 # Assigning fuel cost
 Plant_short_fixed_fuelC = assign_fuel_costs(Plant_short)
-# Assuming merged_short is the DataFrame obtained from the assign_fuel_costs function
-# Plant_short_fixed_allC = adjust_coal_generation_cost(Plant_short_fixed_fuelC)
 # Replacing missing fuel cost
 Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC)
 
 # aggregation of power plants
-Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 14, 1, 1, 1)
+Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 5, 1, 1, 1)
 # Aggregating the power plants
 Plants_ungroup,  Plants_group = cluster_and_aggregate(Plants_community)
 
@@ -95,3 +94,15 @@ input_sets_sorted = 'all_input_sets_sorted.json'
 with open(input_sets_sorted, 'w') as f:
     json.dump(sorted_sets_str, f)
 
+
+# %%
+
+# Specify the path to save the pickle file
+pickle_file_path1 = 'Plants_group.pickle'
+pickle_file_path2 = 'Plants_community.pickle'
+
+# Save the dictionary as a pickle file
+with open(pickle_file_path1, 'wb') as f:
+    pickle.dump(Plants_group, f)
+with open(pickle_file_path2, 'wb') as f:
+    pickle.dump(Plants_community, f)
