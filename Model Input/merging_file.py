@@ -54,6 +54,7 @@ def assign_fuel_costs(input_df):
 
     merged_short = input_df[selected_columns].copy()
     merged_short["FuelCost[$/MWh]"] = ((merged_short["FuelCostTotal"] / (merged_short["FuelUseTotal"] + 1e-10)) * merged_short["HeatRate"]) / 1000
+    merged_short["VOMCost[$/MWh]"] = ((merged_short["VOMCostTotal"] / (merged_short["FuelUseTotal"] + 1e-10)) * merged_short["HeatRate"]) / 1000
     # Identify rows with NaN values in the "NERC" column
     nan_indices = merged_short[merged_short['NERC'].isna()].index
 
@@ -98,7 +99,37 @@ def assign_fuel_costs(input_df):
                         if not non_zero_costs.empty:
                             merged_short.at[idx, 'FuelCost[$/MWh]'] = np.random.choice(non_zero_costs)
 
-    merged_short["Fuel_VOM_Cost"] = merged_short["FuelCost[$/MWh]"] + merged_short["VOMCostTotal"]
+    for idx, row in merged_short.iterrows():
+        fuel_type = row['FuelType']
+        fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['VOMCost[$/MWh]'] > 1)]['VOMCost[$/MWh]']
+        mean_cost = fuel_costs.mean()
+        std_cost = fuel_costs.std()
+        threshold = mean_cost - (1/2) * std_cost
+        if threshold < 0:
+            threshold = 0
+        if row['VOMCost[$/MWh]'] <= threshold:
+            non_zero_costs = merged_short[(merged_short['FuelType'] == row['FuelType']) & (merged_short['RegionName'] == row['RegionName']) & (merged_short['VOMCost[$/MWh]'] > threshold)]['VOMCost[$/MWh]']
+            if not non_zero_costs.empty:
+                merged_short.at[idx, 'VOMCost[$/MWh]'] = np.random.choice(non_zero_costs)
+
+            if merged_short.at[idx, 'VOMCost[$/MWh]'] <= threshold:
+                state_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['StateName'] == row['StateName']) & (merged_short['VOMCost[$/MWh]'] > threshold)]['VOMCost[$/MWh]']
+                non_zero_costs = state_fuel_costs[state_fuel_costs > threshold]
+                if not non_zero_costs.empty:
+                    merged_short.at[idx, 'VOMCost[$/MWh]'] = np.random.choice(non_zero_costs)
+
+                if merged_short.at[idx, 'VOMCost[$/MWh]'] <= threshold:
+                    adj_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['NERC'] == row['NERC']) & (merged_short['VOMCost[$/MWh]'] > threshold)]['VOMCost[$/MWh]']
+                    non_zero_costs = adj_fuel_costs[adj_fuel_costs > threshold]
+                    if not non_zero_costs.empty:
+                        merged_short.at[idx, 'VOMCost[$/MWh]'] = np.random.choice(non_zero_costs)
+
+                    if merged_short.at[idx, 'VOMCost[$/MWh]'] <= threshold:
+                        all_fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['VOMCost[$/MWh]'] > threshold)]['VOMCost[$/MWh]']
+                        non_zero_costs = all_fuel_costs[all_fuel_costs > threshold]
+                        if not non_zero_costs.empty:
+                            merged_short.at[idx, 'VOMCost[$/MWh]'] = np.random.choice(non_zero_costs)
+    merged_short["Fuel_VOM_Cost"] = merged_short["FuelCost[$/MWh]"] + merged_short["VOMCost[$/MWh]"]
     return merged_short
 
 
@@ -287,6 +318,7 @@ def cluster_and_aggregate(df):
         lambda x: pd.Series({
             "Capacity": x["Capacity"].sum(),
             "FuelCost[$/MWh]": weighted_avg(x, "FuelCost[$/MWh]", "Capacity"),
+            "VOMCost[$/MWh]": weighted_avg(x, "VOMCost[$/MWh]", "Capacity"),
             "FuelCostTotal": weighted_avg(x, "FuelCostTotal", "Capacity"),
             "VOMCostTotal": weighted_avg(x, "VOMCostTotal", "Capacity"),
             "Fuel_VOM_Cost": weighted_avg(x, "Fuel_VOM_Cost", "Capacity"),
@@ -327,20 +359,25 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
     a = ["Solar", "Wind", "EnerStor", "Hydro"]
     dispatch_df = df[~df["FuelType"].isin(a)]
     nondispatch_df = df[df["FuelType"].isin(a)]
-    nondispatch_df = nondispatch_df.groupby(["RegionName", "PlantType", "FuelType"]).agg({
-        "Capacity": 'sum',
-        "FuelCost[$/MWh]": 'mean',
-        "FuelCostTotal": 'mean',
-        "VOMCostTotal": 'mean',
-        "Fuel_VOM_Cost": 'mean',
-        "PLNOXRTA": 'mean',
-        "PLSO2RTA": 'mean',
-        "PLCO2RTA": 'mean',
-        "PLCH4RTA": 'mean',
-        "PLN2ORTA": 'mean',
-        "PLPMTRO": 'mean',
-        "StateName": 'first',
-    }).reset_index(drop=False)
+    def weighted_avg(df, value_col, weight_col):
+        return (df[value_col] * df[weight_col]).sum() / df[weight_col].sum()
+    nondispatch_df = nondispatch_df.groupby(["RegionName", "PlantType", "FuelType"]).apply(
+        lambda x: pd.Series({
+            "Capacity": x["Capacity"].sum(),
+            "FuelCost[$/MWh]": weighted_avg(x, "FuelCost[$/MWh]", "Capacity"),
+            "VOMCost[$/MWh]": weighted_avg(x, "VOMCost[$/MWh]", "Capacity"),
+            "FuelCostTotal": weighted_avg(x, "FuelCostTotal", "Capacity"),
+            "VOMCostTotal": weighted_avg(x, "VOMCostTotal", "Capacity"),
+            "Fuel_VOM_Cost": weighted_avg(x, "Fuel_VOM_Cost", "Capacity"),
+            "PLNOXRTA": weighted_avg(x, "PLNOXRTA", "Capacity"),
+            "PLSO2RTA": weighted_avg(x, "PLSO2RTA", "Capacity"),
+            "PLCO2RTA": weighted_avg(x, "PLCO2RTA", "Capacity"),
+            "PLCH4RTA": weighted_avg(x, "PLCH4RTA", "Capacity"),
+            "PLN2ORTA": weighted_avg(x, "PLN2ORTA", "Capacity"),
+            "PLPMTRO": weighted_avg(x, "PLPMTRO", "Capacity"),
+             "StateName": 'first',
+        })
+      ).reset_index(drop=False)
     nondispatch_df["community"] = 0
 
     unique_regions = dispatch_df['RegionName'].unique()
