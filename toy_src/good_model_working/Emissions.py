@@ -5,7 +5,7 @@ import pandas as pd
 # Specify the path to the pickle file
 pickle_file_path1 = '/Users/haniftayarani/good_model/toy_src/results.pickle'
 pickle_file_path2 = '/Users/haniftayarani/good_model/Model Input/Plants_group.pickle'
-pickle_file_path3 = '/Users/haniftayarani/good_model/Model Input/Plants_community.pickle'
+pickle_file_path3 = '/Users/haniftayarani/good_model/Model Input/Plants_ungroup.pickle'
 # Load the dictionary from the pickle file
 with open(pickle_file_path1, 'rb') as f:
     loaded_results = pickle.load(f)
@@ -15,7 +15,7 @@ with open(pickle_file_path2, 'rb') as f:
     Plants_group = pickle.load(f)
 
 with open(pickle_file_path3, 'rb') as f:
-    Plants_community = pickle.load(f)
+    Plants_ungroup = pickle.load(f)
 
 
 # Extracting the 'links' and 'nodes' dictionaries
@@ -35,35 +35,23 @@ def add_emissions_to_generators(nodes_dict, df_multipliers):
                 # Get the multipliers for the current region and generator type
                 multipliers = df_multipliers[(df_multipliers['RegionName'] == region) & (df_multipliers['gen_type'] == gen_type)]
                 if not multipliers.empty:
-                    for emission_type in ['PLPRMFL', 'PLNOXRTA', 'PLSO2RTA', 'PLCO2RTA', 'PLCH4RTA', 'PLN2ORTA']:
+                    if gen_type not in region_data['generator']['emissions']:
+                        region_data['generator']['emissions'][gen_type] = {}
+                    for emission_type in ['PLPMTRO', 'PLNOXRTA', 'PLSO2RTA', 'PLCO2RTA', 'PLCH4RTA', 'PLN2ORTA']:
                         multiplier = multipliers[emission_type].values[0]
-                        if emission_type not in region_data['generator']['emissions']:
-                            region_data['generator']['emissions'][emission_type] = {}
-                        region_data['generator']['emissions'][emission_type][gen_type] = {
+                        region_data['generator']['emissions'][gen_type][emission_type] = {
                             hour: cap * multiplier for hour, cap in capacity.items()
                         }
+    return nodes_dict
 
 
-# Assuming `Plants_community` is a DataFrame containing the plant data
-Plants_community1 = pd.DataFrame({
-    'RegionName': ['WECC_WY', 'WECC_WY', 'WECC_WY', 'WECC_WY'],
-    'PlantType': ['Coal Steam', 'Coal Steam', 'Coal Steam', 'Combined Cycle'],
-    'FuelType': ['Coal', 'Coal', 'Coal', 'NaturalGas'],
-    'community': [1, 2, 3, 1],
-    'PLPRMFL': [0.1, 0.1, 0.1, 0.1],
-    'PLNOXRTA': [0.2, 0.2, 0.2, 0.2],
-    'PLSO2RTA': [0.3, 0.3, 0.3, 0.3],
-    'PLCO2RTA': [0.4, 0.4, 0.4, 0.4],
-    'PLCH4RTA': [0.5, 0.5, 0.5, 0.5],
-    'PLN2ORTA': [0.6, 0.6, 0.6, 0.6]
-})
+def creating_emission_data(df):
+    emission_data = df.copy()
+    emission_data = emission_data.sort_values(by=["RegionName", "PlantType", "FuelType", "community"])
+    emission_data.loc[:, 'gen_type'] = emission_data['PlantType'] + '_' + emission_data['FuelType'] + '_' + emission_data['community'].astype(str)
+    return emission_data
 
 
-
-emission_data = Plants_community.copy()
-emission_data = emission_data.sort_values(by=["RegionName", "PlantType", "FuelType", "community"])
-emission_data['community_number'] = emission_data.groupby(["RegionName", "PlantType", "FuelType", "community"]).ngroup()
-emission_data.loc[:, 'gen_type'] = emission_data['PlantType'] + '_' + emission_data['FuelType'] + '_' + emission_data['community_number'].astype(str)
-
+emission_data1 = creating_emission_data(Plants_group)
 # Add emissions data to the nodes dictionary
-add_emissions_to_generators(nodes_dict, emission_data)
+nodes_dict1 = add_emissions_to_generators(nodes_dict, emission_data1)
