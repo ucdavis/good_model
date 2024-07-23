@@ -104,7 +104,7 @@ def get_annual_gen_mix(results):
 
     return fuel_mix
 
-def plot_hourly_gen_mix(hourly_mix): 
+def plot_hourly_gen_mix(hourly_mix):
 
     '''
         Purpose: Plots a stacked line chart of the hourly of US gen mix
@@ -112,7 +112,14 @@ def plot_hourly_gen_mix(hourly_mix):
         Output: Stacked line chart
     '''
 
+    # Convert the dictionary to DataFrame
     hourly_df = pd.DataFrame.from_dict(hourly_mix, orient='index').T
+
+    # Extract the generation type
+    hourly_df.columns = ['_'.join(col.split('_')[:2]) for col in hourly_df.columns]
+
+    # Sum values with the same generation type
+    hourly_df = hourly_df.groupby(level=0, axis=1).sum()
 
     colors = sns.color_palette("Set2", len(hourly_df.columns))
     color_map = {col: color for col, color in zip(hourly_df.columns, colors)}
@@ -124,8 +131,7 @@ def plot_hourly_gen_mix(hourly_mix):
     # Plot stacked area chart using seaborn's stackplot
     plt.figure(figsize=(12, 6))
     plt.stackplot(hours, stack_data, labels=hourly_df.columns, colors=colors)
-    plt.margins(x=0) 
-    plt.margins(y=0)  
+    plt.margins(x=0, y=0)
 
     plt.title('Hourly Generation Mix')
     plt.xlabel('Hour')
