@@ -1,10 +1,13 @@
 # %%
 import os
+
+import pandas as pd
+
 from reading_file import load_data
 from merging_file import (merging_data, assign_fuel_costs, cluster_plants, assign_em_rates, long_wide, transmission_func,
                           ffill_ren_cost, ffill_ren_cap, cluster_and_aggregate, long_wide_load, storage_object, solar_object,
-                          wind_object, gen_object, load_object, trans_object, plant_capacity, trans_index, renewable_transmission_cost,
-                          convert_keys_to_string, merge_dictionaries_and_format)
+                          wind_object, gen_object, load_object, trans_object, plant_capacity, trans_index, renewable_transmission_cost,adjust_coal_generation_cost,
+                          convert_keys_to_string, merge_dictionaries_and_format, adjust_nuclear_generation_cost)
 import json
 import numpy as np
 import pickle
@@ -12,13 +15,16 @@ import warnings
 warnings.filterwarnings("ignore")
 # %% Loading Input Data
 (Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity,
- Wind_capital_cost, Solar_regional_capacity, Solar_generation_profile, Solar_capital_cost_photov, Solar_capacity_factor, Regional_Cost, Unit_Cost) = load_data()
+ Wind_capital_cost, Solar_regional_capacity, Solar_generation_profile, Solar_capital_cost_photov,
+ Solar_capacity_factor, Regional_Cost, Unit_Cost) = load_data()
 # Merging power plants data
 Plant_short = merging_data(Plant, Parsed)
 # Assigning fuel cost
 Plant_short_fixed_fuelC = assign_fuel_costs(Plant_short)
+Plant_short_fixed_fuelC_coal = adjust_coal_generation_cost(Plant_short_fixed_fuelC)
+Plant_short_fixed_fuelC_coal_Nuc = adjust_nuclear_generation_cost(Plant_short_fixed_fuelC)
 # Replacing missing fuel cost
-Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC)
+Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC_coal_Nuc)
 # Aggregation of power plants
 Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 4, 1, 1, 1)
 # Aggregating the power plants
@@ -94,3 +100,6 @@ with open(pickle_file_path1, 'wb') as f:
     pickle.dump(Plants_group, f)
 with open(pickle_file_path2, 'wb') as f:
     pickle.dump(Plants_ungroup, f)
+
+
+
