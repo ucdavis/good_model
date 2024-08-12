@@ -107,12 +107,12 @@ class Solar:
 
         model.add_component( 
             self.region_id + '_solarCost', 
-            pyomo.Param(model.src, model.cc,  initialize=self.cost, default=0)
+            pyomo.Param(model.src, model.cc, initialize=self.cost, default=0)
         )
 
         model.add_component( 
             self.region_id + '_solarGenProfile', 
-            pyomo.Param(model.src, model.t,initialize=self.gen_profile, default=0)
+            pyomo.Param(model.src, model.t, initialize=self.gen_profile, default=0)
         )
 
         model.add_component( 

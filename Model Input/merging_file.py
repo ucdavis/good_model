@@ -49,12 +49,35 @@ def map_fuel_type(row_input):
 
 # Create a function to assign fuel costs
 def assign_fuel_costs(input_df):
-    selected_columns = ["RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
+    selected_columns = ["RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
                         "UTLSRVNM", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
 
     merged_short = input_df[selected_columns].copy()
-    merged_short["FuelCost[$/MWh]"] = ((merged_short["FuelCostTotal"] / (merged_short["FuelUseTotal"] + 1e-10)) * merged_short["HeatRate"]) / 1000
-    merged_short["VOMCost[$/MWh]"] = ((merged_short["VOMCostTotal"] / (merged_short["FuelUseTotal"] + 1e-10)) * merged_short["HeatRate"]) / 1000
+    merged_short["FuelCost[$/MWh]"] = ((merged_short["FuelCostTotal"] / (merged_short["FuelUseTotal"] + 1)) * merged_short["HeatRate"]) / 1000
+    # Define the plant types that should use VOMCostTotal directly
+    plant_types_direct_vom = ["Solar", "Solar PV", "Wind", "Hydro", "Energy Storage", "Solar Thermal", "New Battery Storage", "Offshore Wind"]
+
+    # Calculate VOMCost[$/MWh] with conditions
+    merged_short["VOMCost[$/MWh]"] = np.where(
+        merged_short["PlantType"].isin(plant_types_direct_vom),
+        merged_short["VOMCostTotal"],
+        ((merged_short["VOMCostTotal"] / (merged_short["FuelUseTotal"] + 1)) * merged_short["HeatRate"]) / 1000
+    )
+
+    # Calculate FOMCost[$/MWh] with conditions
+    merged_short["FOMCost[$/MWh]"] = np.where(
+        merged_short["PlantType"].isin(plant_types_direct_vom),
+        merged_short["FOMCost"],
+        (((merged_short["FOMCost"]*1e6)) / (merged_short["Capacity"]*8760))
+    )
+
+    # Add FOMCost[$/MWh] to VOMCost[$/MWh] if PlantType is Nuclear
+    merged_short["VOMCost[$/MWh]"] = np.where(
+        merged_short["PlantType"] == "Nuclear",
+        merged_short["VOMCost[$/MWh]"] + merged_short["FOMCost[$/MWh]"],
+        merged_short["VOMCost[$/MWh]"]
+    )
+
     # Identify rows with NaN values in the "NERC" column
     nan_indices = merged_short[merged_short['NERC'].isna()].index
 
@@ -104,7 +127,7 @@ def assign_fuel_costs(input_df):
         fuel_costs = merged_short[(merged_short['FuelType'] == fuel_type) & (merged_short['VOMCost[$/MWh]'] > 1)]['VOMCost[$/MWh]']
         mean_cost = fuel_costs.mean()
         std_cost = fuel_costs.std()
-        threshold = mean_cost - (1/2) * std_cost
+        threshold = mean_cost - (2) * std_cost
         if threshold < 0:
             threshold = 0
         if row['VOMCost[$/MWh]'] <= threshold:
@@ -137,30 +160,40 @@ def adjust_coal_generation_cost(df):
     # Filter only the rows with FuelType 'Coal'
     coal_data = df[df['FuelType'] == 'Coal'].copy()
 
-    # Define the target range and mean
-    target_min = 28
-    target_max = 67
-    target_mean = 44
+    # Define the target mean
+    target_mean = 25.58
 
-    # Normalize the current Fuel_VOM_Cost to the range [0, 1]
-    coal_data['normalized_cost'] = (coal_data['Fuel_VOM_Cost'] - coal_data['Fuel_VOM_Cost'].min()) / (coal_data['Fuel_VOM_Cost'].max() - coal_data['Fuel_VOM_Cost'].min())
+    # Calculate the current mean
+    current_mean = coal_data['Fuel_VOM_Cost'].mean()
 
-    # Rescale the normalized cost to the target range [28, 67]
-    coal_data['scaled_cost'] = coal_data['normalized_cost'] * (target_max - target_min) + target_min
-
-    # Adjust the mean to be 44
-    current_mean = coal_data['scaled_cost'].mean()
+    # Adjust the costs to have the target mean
     adjustment_factor = target_mean / current_mean
-    coal_data['adjusted_cost'] = coal_data['scaled_cost'] * adjustment_factor
-
-    # Clip the values to ensure they fall within the desired range
-    coal_data['adjusted_cost'] = coal_data['adjusted_cost'].clip(lower=target_min, upper=target_max)
+    coal_data['adjusted_cost'] = coal_data['Fuel_VOM_Cost'] * adjustment_factor
 
     # Replace the original Fuel_VOM_Cost with the adjusted values
     df.loc[df['FuelType'] == 'Coal', 'Fuel_VOM_Cost'] = coal_data['adjusted_cost']
 
     return df
 
+
+def adjust_nuclear_generation_cost(df):
+    # Filter only the rows with FuelType 'Nuclear'
+    nuclear_data = df[df['FuelType'] == 'Nuclear'].copy()
+
+    # Define the target mean
+    target_mean = 21.2
+
+    # Calculate the current mean
+    current_mean = nuclear_data['Fuel_VOM_Cost'].mean()
+
+    # Adjust the costs to have the target mean
+    adjustment_factor = target_mean / current_mean
+    nuclear_data['adjusted_cost'] = nuclear_data['Fuel_VOM_Cost'] * adjustment_factor
+
+    # Replace the original Fuel_VOM_Cost with the adjusted values
+    df.loc[df['FuelType'] == 'Nuclear', 'Fuel_VOM_Cost'] = nuclear_data['adjusted_cost']
+
+    return df
 
 def assign_em_rates(input_df):
     input_df.loc[input_df["FuelType"].isin(["Pumps", "Hydro", "Geothermal", "Non-Fossil", "EnerStor", "Nuclear", "Solar", "Wind"]), ["PLCO2RTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLNOXRTA"]] = 0
@@ -356,11 +389,13 @@ def haversine_distance_miles(lat1, lon1, lat2, lon2):
 
 def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_distance, resolution, heatrate_weight, emission_weight, cost_weight):
     # df = Plant_short_fixed_Em.copy()
-    a = ["Solar", "Wind", "EnerStor", "Hydro"]
-    dispatch_df = df[~df["FuelType"].isin(a)]
-    nondispatch_df = df[df["FuelType"].isin(a)]
+    a = ["Solar", "Wind", "EnerStor", "Hydro", "Geothermal"]
+    dispatch_df = df[~df["FuelType"].isin(a)].copy()
+    nondispatch_df = df[df["FuelType"].isin(a)].copy()
+
     def weighted_avg(df, value_col, weight_col):
         return (df[value_col] * df[weight_col]).sum() / df[weight_col].sum()
+
     nondispatch_df = nondispatch_df.groupby(["RegionName", "PlantType", "FuelType"]).apply(
         lambda x: pd.Series({
             "Capacity": x["Capacity"].sum(),
@@ -395,7 +430,6 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
         for idx in range(len(dispatch_df_region)):
             nodes.append({
                 'id': f'plant_{idx}',
-
                 'heat_rate': dispatch_df_region["HeatRate"].iloc[idx],
                 'emission_rate': dispatch_df_region["PLCO2RTA"].iloc[idx],
                 'cost_rate': dispatch_df_region['FuelCost[$/MWh]'].iloc[idx],
@@ -410,10 +444,7 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
         )
 
         for idx_source in range(len(dispatch_df_region)):
-            for idx_target in range(len(dispatch_df_region)):
-                if idx_source == idx_target:
-                    continue
-
+            for idx_target in range(idx_source + 1, len(dispatch_df_region)):
                 source = f'plant_{idx_source}'
                 target = f'plant_{idx_target}'
 
@@ -428,39 +459,25 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
                 links[-1]['weighted_distance'] = weighted_distance_function(links[-1])
 
         limits = {
-            # 'pythagorean_distance': pythagorean_distance,
             'heat_rate_distance': heat_rate_distance,
             'emission_rate_distance': emission_rate_distance,
             'cost_rate_distance': cost_rate_distance,
         }
 
-        links_filtered = []
-
-        for link in links:
-            keep = True
-            for field, value in limits.items():
-                keep *= link[field] <= value
-
-            if keep:
-                links_filtered.append(link)
+        links_filtered = [link for link in links if all(link[field] <= value for field, value in limits.items())]
         graph = nx.node_link_graph({'nodes': nodes, 'links': links_filtered})
 
-        communities = list(nx.community.greedy_modularity_communities(
-                graph, weight='weighted_distance', resolution=resolution
-            ))
+        communities = list(nx.community.greedy_modularity_communities(graph, weight='weighted_distance', resolution=resolution))
 
         community_map = {}
         for community_number, community in enumerate(communities):
             for node in community:
                 community_map[node] = community_number
 
-        node_index = 0  # Initialize node index
-
-        for idx, row in dispatch_df_region.iterrows():
+        for node_index, row_index in enumerate(dispatch_df_region.index):
             node_id = f'plant_{node_index}'
             if node_id in community_map:
-                dispatch_df.loc[idx, 'community'] = community_map[node_id]
-            node_index += 1
+                dispatch_df.loc[row_index, 'community'] = community_map[node_id]
 
         all_regions_clusters[region_name] = {
             'nodes': graph.number_of_nodes(),
@@ -470,16 +487,18 @@ def cluster_plants(df, heat_rate_distance, emission_rate_distance, cost_rate_dis
         end_time = time.time()
         print(f"Time taken to cluster plants in {region_name}: {end_time - start_time} seconds")
 
-        nondispatch_df_cn = dispatch_df["community"].max()
-        nondispatch_df_cn_solar = nondispatch_df_cn + 1
-        nondispatch_df_cn_wind = nondispatch_df_cn + 2
-        nondispatch_df_cn_storage = nondispatch_df_cn + 3
+    nondispatch_df_cn = dispatch_df["community"].max()
+    nondispatch_df_cn_solar = nondispatch_df_cn + 1
+    nondispatch_df_cn_wind = nondispatch_df_cn + 2
+    nondispatch_df_cn_storage = nondispatch_df_cn + 3
+    nondispatch_df_cn_geo = nondispatch_df_cn + 4
 
-        nondispatch_df.loc[nondispatch_df["FuelType"] == "Wind", "community"] = nondispatch_df_cn_wind
-        nondispatch_df.loc[nondispatch_df["FuelType"] == "Solar", "community"] = nondispatch_df_cn_solar
-        nondispatch_df.loc[nondispatch_df["FuelType"] == "EnerStor", "community"] = nondispatch_df_cn_storage
+    nondispatch_df.loc[nondispatch_df["FuelType"] == "Wind", "community"] = nondispatch_df_cn_wind
+    nondispatch_df.loc[nondispatch_df["FuelType"] == "Solar", "community"] = nondispatch_df_cn_solar
+    nondispatch_df.loc[nondispatch_df["FuelType"] == "EnerStor", "community"] = nondispatch_df_cn_storage
+    nondispatch_df.loc[nondispatch_df["FuelType"] == "Geothermal", "community"] = nondispatch_df_cn_geo
 
-        df = pd.concat([dispatch_df, nondispatch_df], axis=0)
+    df = pd.concat([dispatch_df, nondispatch_df], axis=0)
     return df, all_regions_clusters
 
 def long_wide_load(input_df):
@@ -712,7 +731,7 @@ def gen_object(df):
         plant_type = row.iloc[1]  # Second column contains the Plant Type
         fuel_type = row.iloc[2]  # Third column contains the Fuel Type
         community = row.iloc[3]  # Fourth column contains the community number
-        cost = row.iloc[5]  # Tenth column contains the Fuel and VOM Cost
+        cost = row.iloc[9]  # Tenth column contains the Fuel and VOM Cost
         capacity = row.iloc[4]  # Seventh column contains the generator capacity
         # group_id = row.iloc[15]  # Seventeenth column contains the group ID
         gen_type = f'{plant_type}_{fuel_type}_{community}'

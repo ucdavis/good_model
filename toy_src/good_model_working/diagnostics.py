@@ -62,10 +62,11 @@ def get_annual_gen_mix(results):
 
     for region, obj_data in nodes.items():
         gen_dict = obj_data.get('generator', {})
-
-        solar_dict = obj_data.get('solar', {})
-
-        wind_dict = obj_data.get('wind', {})
+        capacity_dict = gen_dict.get('capacity', {})
+        solar_dict = capacity_dict.get('solar', {})
+        wind_dict = capacity_dict.get('wind', {})
+        # solar_dict = obj_data.get('solar', {})
+        # wind_dict = obj_data.get('wind', {})
 
         if gen_dict:
  
@@ -103,6 +104,7 @@ def get_annual_gen_mix(results):
             fuel_mix['Wind'] = total_wind_capacity
 
     return fuel_mix
+
 
 def plot_hourly_gen_mix(hourly_mix):
 

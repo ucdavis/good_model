@@ -299,21 +299,74 @@ class Opt_Model:
         solver = pyomo.SolverFactory(self.solver_name)
         self.results = solver.solve(self.model, tee=True)
 
-    def get_results(self): 
+    def get_results(self):
 
         self.results = {
-            'links': {}, 
+            'links': {},
             'nodes': {}
         }
 
         for region_id, region_data in self.graph._node.items():
-            
-            self.results['nodes'][region_id] = region_data['object'].results(self.model, self.results)
+            node_results = region_data['object'].results(self.model, self.results)
+
+            # Adding solar and wind generation to the node results
+            solar_generation = self.get_solar_generation(region_id)
+            wind_generation = self.get_wind_generation(region_id)
+
+            if 'generator' not in node_results:
+                node_results['generator'] = {'capacity': {}, 'cost': {}}
+
+            if 'capacity' not in node_results['generator']:
+                node_results['generator']['capacity'] = {}
+
+            node_results['generator']['capacity']['solar'] = solar_generation
+            node_results['generator']['capacity']['wind'] = wind_generation
+
+            self.results['nodes'][region_id] = node_results
 
         for source, adjacency in self.graph._adj.items():
-
             for target, link in adjacency.items():
+                self.results['links'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
 
-               self.results['links'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
-               
         return self.results
+
+    def get_solar_generation(self, region_id):
+        solar_gen = {}
+        c_solar_cap = getattr(self.model, region_id + '_solarCap', 0)
+        c_solar_profile = getattr(self.model, region_id + '_solarGenProfile', 0)
+
+        valid_solar_indices = None
+        if c_solar_profile != 0:
+            valid_solar_indices = set([s for s, _ in c_solar_profile])
+
+        for t in self.model.t:
+            solar_terms = 0
+            if valid_solar_indices is not None:
+                solar_terms = sum(
+                    (c_solar_cap[s, c] * c_solar_profile[s, t])
+
+                    for s in valid_solar_indices
+                    for c in self.model.cc
+                )
+            solar_gen[t] = solar_terms
+        return solar_gen
+
+    def get_wind_generation(self, region_id):
+        wind_gen = {}
+        c_wind_cap = getattr(self.model, region_id + '_windCap', 0)
+        c_wind_profile = getattr(self.model, region_id + '_windGenProfile', 0)
+
+        valid_wind_indices = None
+        if c_wind_profile != 0:
+            valid_wind_indices = set([w for w, _ in c_wind_profile])
+
+        for t in self.model.t:
+            wind_terms = 0
+            if valid_wind_indices is not None:
+                wind_terms = sum(
+                    (c_wind_cap[w, c] * c_wind_profile[w, t])
+                    for w in valid_wind_indices
+                    for c in self.model.cc
+                )
+            wind_gen[t] = wind_terms
+        return wind_gen

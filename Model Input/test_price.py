@@ -164,3 +164,5 @@ plotfuel(Plants_group)
 
 plotVOM(Plant_short_fixed_Em)
 plotfuel(Plant_short_fixed_Em)
+
+plotVOM(Plant_short_fixed_fuelC)

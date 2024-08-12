@@ -21,7 +21,7 @@ with open(pickle_file_path3, 'rb') as f:
 # Extracting the 'links' and 'nodes' dictionaries
 links_dict = loaded_results.get('links', {})
 nodes_dict = loaded_results.get('nodes', {})
-
+nodes_dict_generator_cap = nodes_dict["generator"]["capacity"]
 
 # Function to add emissions with multipliers from the DataFrame
 def add_emissions_to_generators(nodes_dict, df_multipliers):
