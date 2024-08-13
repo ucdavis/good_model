@@ -161,7 +161,7 @@ def adjust_coal_generation_cost(df):
     coal_data = df[df['FuelType'] == 'Coal'].copy()
 
     # Define the target mean
-    target_mean = 25.58
+    target_mean = 25
 
     # Calculate the current mean
     current_mean = coal_data['Fuel_VOM_Cost'].mean()

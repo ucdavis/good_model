@@ -21,7 +21,7 @@ with open(pickle_file_path3, 'rb') as f:
 # Extracting the 'links' and 'nodes' dictionaries
 links_dict = loaded_results.get('links', {})
 nodes_dict = loaded_results.get('nodes', {})
-nodes_dict_generator_cap = nodes_dict["generator"]["capacity"]
+
 
 # Function to add emissions with multipliers from the DataFrame
 def add_emissions_to_generators(nodes_dict, df_multipliers):
@@ -53,5 +53,37 @@ def creating_emission_data(df):
 
 
 emission_data1 = creating_emission_data(Plants_group)
+
+
 # Add emissions data to the nodes dictionary
 nodes_dict1 = add_emissions_to_generators(nodes_dict, emission_data1)
+nodes_dict_test = nodes_dict["ERC_REST"]["generator"]["capacity"]["Combined Cycle_NaturalGas_3"]
+# Flatten the dictionary
+flattened_data = []
+
+for region, region_data in nodes_dict1.items():
+    if 'generator' in region_data and 'emissions' in region_data['generator']:
+        for gen_type, emissions_data in region_data['generator']['emissions'].items():
+            for emission_criteria, time_emissions in emissions_data.items():
+                for time, emission in time_emissions.items():
+                    flattened_data.append([region, gen_type, emission_criteria, time, emission])
+
+
+# Create DataFrame
+df = pd.DataFrame(flattened_data, columns=['RegionName', 'gen_type', 'Emission_Criteria', 'Time', 'Emission_Value'])
+
+# Pivot the DataFrame
+df_pivot = df.pivot(index=['RegionName', 'gen_type', 'Emission_Criteria'], columns='Time', values='Emission_Value').reset_index()
+
+# Flatten the MultiIndex in columns if needed
+df_pivot.columns.name = None
+df_pivot.columns = [str(col) if isinstance(col, int) else col for col in df_pivot.columns]
+
+
+df_pivot = df_pivot[~df_pivot["gen_type"].isin(["solar", "wind", "Tires_Tires_1"])]
+
+df_pivot1 = pd.merge(Plants_ungroup[["RegionName", "FuelType", "gen_type", "StateName", "CountyName", "NERC", "Capacity"]], df_pivot, how="left", on=["RegionName", "gen_type"])
+df_pivot1 = df_pivot1[df_pivot1["Emission_Criteria"] == "PLCO2RTA"]
+
+df_pivot1 = df_pivot1[~df_pivot1["FuelType"].isin(["Solar", "Wind", "Tires_Tires_1"])]
+
