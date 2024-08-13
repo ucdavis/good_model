@@ -23,6 +23,6 @@ storage_flow_limit = 0.85
 
 transmission_efficiency = 0.972
 
-time_periods = list(range(0, 70))
+time_periods = list(range(5000, 5780))
 
 hydro_capacity_limit = 0.05
