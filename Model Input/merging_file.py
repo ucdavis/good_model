@@ -49,7 +49,7 @@ def map_fuel_type(row_input):
 
 # Create a function to assign fuel costs
 def assign_fuel_costs(input_df):
-    selected_columns = ["RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
+    selected_columns = ["UniqueID", "RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
                         "UTLSRVNM", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
 
     merged_short = input_df[selected_columns].copy()
@@ -161,7 +161,7 @@ def adjust_coal_generation_cost(df):
     coal_data = df[df['FuelType'] == 'Coal'].copy()
 
     # Define the target mean
-    target_mean = 25
+    target_mean = 23
 
     # Calculate the current mean
     current_mean = coal_data['Fuel_VOM_Cost'].mean()
@@ -195,7 +195,9 @@ def adjust_nuclear_generation_cost(df):
 
     return df
 
+
 def assign_em_rates(input_df):
+
     input_df.loc[input_df["FuelType"].isin(["Pumps", "Hydro", "Geothermal", "Non-Fossil", "EnerStor", "Nuclear", "Solar", "Wind"]), ["PLCO2RTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLNOXRTA"]] = 0
     for r in range(input_df.shape[0]):
             if np.isnan(input_df.at[r, 'PLCO2RTA']):
@@ -253,7 +255,7 @@ def assign_em_rates(input_df):
             if np.isnan(input_df.at[r, 'PLCO2RTA']):
                 # Expand search to all similar plants if no similar plants found in entire state
                 similar_rows = input_df[(input_df['FuelType'] == input_df.at[r, 'FuelType']) &
-                                        (input_df['PlantType'] == input_df.at[r, 'PlantType']) ]
+                                        (input_df['PlantType'] == input_df.at[r, 'PlantType'])]
 
                 input_df.loc[r, ['PLCO2RTA', 'PLNOXRTA', 'PLCH4RTA', 'PLN2ORTA', 'PLSO2RTA']] = similar_rows[['PLCO2RTA', 'PLNOXRTA', 'PLCH4RTA', 'PLN2ORTA', 'PLSO2RTA']].mean()
 
@@ -277,6 +279,9 @@ def assign_em_rates(input_df):
 
     input_df['PLPMTRO'] = input_df['PLPMTRO'] * input_df['HeatRate'] / 1000
 
+    # Special condition for outliner (needs to be fixed)
+    input_df.loc[input_df["PLCO2RTA"] > 10000, ["PLCO2RTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLNOXRTA"]] /= 1000
+
     return input_df
 
 
@@ -286,8 +291,9 @@ def long_wide(input_df):
     # Define the columns to keep (first four columns)
     columns_to_keep = ['Region Name', 'State Name', 'Resource Class']
 
-    # Group by the first four columns and concatenate columns 6 to 26
-    result_df = df.groupby(columns_to_keep).apply(lambda x: x.iloc[:, 6:].values.flatten()).reset_index()
+    # Group by the first four columns and concatenate columns 6 to 26, and convert the kwh/MW to MWh/MW
+    result_df = df.groupby(columns_to_keep).apply(lambda x: (x.iloc[:, 6:] / 1000).values.flatten()).reset_index()
+
     result_df = result_df.rename(columns={result_df.columns[3]: "Profile"})
 
     # Convert the Profile column to a list of lists
@@ -1051,3 +1057,29 @@ def convert_keys_to_string(obj):
         return [convert_keys_to_string(element) for element in obj]
     else:
         return obj
+
+
+def concat_filtered_plants(Plants_ungroup, Plant_short):
+    # Filter rows for non-renewable fuel types in Plants_ungroup_extended
+    Plants_ungroup_extended = Plants_ungroup[~Plants_ungroup["FuelType"].isin(["Solar", "Wind", "EnerStor", "Hydro", "Geothermal"])]
+
+    # Filter rows for renewable fuel types in Plant_short
+    Plant_short_filtered = Plant_short[Plant_short["FuelType"].isin(["Solar", "Wind", "EnerStor", "Hydro", "Geothermal"])]
+
+    # Select only the columns that exist in Plants_ungroup_extended from Plant_short_filtered
+    Plant_short_filtered = Plant_short_filtered[Plants_ungroup_extended.columns.intersection(Plant_short_filtered.columns)]
+
+    # Concatenate the two DataFrames along axis=0 (i.e., row-wise concatenation)
+    result_df = pd.concat([Plants_ungroup_extended, Plant_short_filtered], axis=0)
+
+    # Create a new column 'UniqueIDN' that copies existing 'UniqueID'
+    result_df['UniqueIDN'] = result_df['UniqueID']
+
+    # Identify rows with NaN in 'UniqueID' and assign unique values in the format '999_G_x'
+    nan_rows = result_df['UniqueID'].isna()
+
+    # Assign unique values to the NaNs in the format '999_G_1', '999_G_2', etc.
+    result_df.loc[nan_rows, 'UniqueIDN'] = ['999_G_nan_' + str(i) for i in range(nan_rows.sum())]
+
+    return result_df
+

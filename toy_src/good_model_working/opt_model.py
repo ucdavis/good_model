@@ -8,6 +8,23 @@ import time
 
 
 class Opt_Model:
+
+    def print_total_demand1(self):
+        total_demand_all_regions = 0  # Initialize a variable to hold the total demand across all regions
+
+        print("Total demand for each region:")
+        for r in self.model.r:
+            c_load = getattr(self.model, r + '_load', None)
+            if c_load is not None:
+                total_demand = sum(c_load[t] for t in self.model.t)  # Sum the demand across all time periods
+                total_demand_all_regions += total_demand  # Add the region's total demand to the overall total
+                print(f"Region: {r}, Total Demand: {total_demand}")
+            else:
+                print(f"Region: {r} has no demand data.")
+
+        # Print the total demand for all regions
+        print(f"Total demand for all regions: {total_demand_all_regions}")
+
     def __init__(self, model_data, solver_name):
         
         self.solver_name = solver_name
@@ -69,7 +86,10 @@ class Opt_Model:
 
         self.build_parameters()
         self.timer.toc('Parameters built')
-                
+
+        # Call the total demand printing method here
+        self.print_total_demand1()
+
         self.build_variables()
         self.timer.toc('Variables built')
 
@@ -198,7 +218,8 @@ class Opt_Model:
                 solar_terms = 0
                 if valid_solar_indices is not None: 
                     solar_terms = pyomo.quicksum(
-                        ((c_solar_cap[s,c] + x_solar_var[s, c]) * c_solar_profile[s, t])
+                        ((c_solar_cap[s, c] + x_solar_var[s, c]) * c_solar_profile[s, t])
+                        # ((c_solar_cap[s, c]) * c_solar_profile[s, t])
                         for s in valid_solar_indices
                         for c in self.model.cc
                     )
@@ -206,7 +227,8 @@ class Opt_Model:
                 wind_terms = 0 
                 if valid_wind_indices is not None: 
                     wind_terms = pyomo.quicksum(
-                        ((c_wind_cap[w,c] + x_wind_var[w, c]) * c_wind_profile[w, t])
+                        ((c_wind_cap[w, c] + x_wind_var[w, c]) * c_wind_profile[w, t])
+                        # ((c_wind_cap[w, c]) * c_wind_profile[w, t])
                         for w in valid_wind_indices
                         for c in self.model.cc
                     )
@@ -242,13 +264,13 @@ class Opt_Model:
 
                                 
                 cons_expr = (
-                    solar_terms 
-                    + wind_terms 
-                    + storage_terms 
+                    solar_terms
+                    + wind_terms
+                    + storage_terms
                     + generation_terms 
                     + import_terms
                     - export_terms
-                    - demand_terms
+                    - (demand_terms)
                     >= 0
                 )
 
@@ -299,6 +321,24 @@ class Opt_Model:
         solver = pyomo.SolverFactory(self.solver_name)
         self.results = solver.solve(self.model, tee=True)
 
+    #
+    # def get_results(self):
+    #
+    #     self.results = {
+    #         'links': {},
+    #         'nodes': {}
+    #     }
+    #
+    #     for region_id, region_data in self.graph._node.items():
+    #         self.results['nodes'][region_id] = region_data['object'].results(self.model, self.results)
+    #
+    #     for source, adjacency in self.graph._adj.items():
+    #
+    #         for target, link in adjacency.items():
+    #             self.results['links'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
+    #
+    #     return self.results
+    #
     def get_results(self):
 
         self.results = {
@@ -319,8 +359,8 @@ class Opt_Model:
             if 'capacity' not in node_results['generator']:
                 node_results['generator']['capacity'] = {}
 
-            node_results['generator']['capacity']['solar'] = solar_generation
-            node_results['generator']['capacity']['wind'] = wind_generation
+            node_results['generator']['capacity']['Solar'] = solar_generation
+            node_results['generator']['capacity']['Wind'] = wind_generation
 
             self.results['nodes'][region_id] = node_results
 
@@ -370,3 +410,34 @@ class Opt_Model:
                 )
             wind_gen[t] = wind_terms
         return wind_gen
+
+    def get_results_hourly(self):
+        self.results = {
+            'links': {},
+            'nodes': {}
+        }
+
+        total_generation = 0
+        total_demand = 0
+
+        for region_id, region_data in self.graph._node.items():
+            node_results = region_data['object'].results(self.model, self.results)
+            self.results['nodes'][region_id] = node_results
+
+            # Add generation and demand results
+            for t in self.model.t:
+                generation = getattr(self.model, f'{region_id}_generation', None)
+                load = getattr(self.model, f'{region_id}_load', None)
+
+                if generation is not None:
+                    generation_total = sum(generation[g, t].value for g in self.model.gen if (g, t) in generation)
+                    total_generation += generation_total
+
+                if load is not None:
+                    # Assuming load[t] is a float, no need for .value
+                    demand_total = load[t]
+                    total_demand += demand_total
+
+                print(f"Region {region_id}, Time {t}: Generation = {generation_total}, Demand = {demand_total}")
+
+        print(f"Total generation: {total_generation}, Total demand: {total_demand}")

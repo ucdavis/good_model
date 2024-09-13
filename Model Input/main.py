@@ -1,13 +1,11 @@
 # %%
 import os
-
 import pandas as pd
-
 from reading_file import load_data
 from merging_file import (merging_data, assign_fuel_costs, cluster_plants, assign_em_rates, long_wide, transmission_func,
                           ffill_ren_cost, ffill_ren_cap, cluster_and_aggregate, long_wide_load, storage_object, solar_object,
                           wind_object, gen_object, load_object, trans_object, plant_capacity, trans_index, renewable_transmission_cost,adjust_coal_generation_cost,
-                          convert_keys_to_string, merge_dictionaries_and_format, adjust_nuclear_generation_cost)
+                          convert_keys_to_string, merge_dictionaries_and_format, adjust_nuclear_generation_cost, concat_filtered_plants)
 import json
 import numpy as np
 import pickle
@@ -29,6 +27,8 @@ Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC_coal_Nuc)
 Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 4, 1, 1, 1)
 # Aggregating the power plants
 Plants_ungroup,  Plants_group = cluster_and_aggregate(Plants_community)
+Plants_ungroup_extended = concat_filtered_plants(Plants_ungroup, Plant_short)
+
 # Creat a wide version of the input datas
 Wind_generation_profile_wide = long_wide(Wind_generation_profile)
 Solar_generation_profile_wide = long_wide(Solar_generation_profile)
@@ -66,10 +66,7 @@ all_dicts = load_oo + generator_oo + storage_oo + solar_oo + wind_oo
 # Merge all dictionaries in the list
 nodes = merge_dictionaries_and_format(all_dicts)
 # Create a dictionary to hold all objects
-all_objects = {
-    'nodes': nodes,
-    'links': links,
-}
+all_objects = {'nodes': nodes, 'links': links}
 # Convert all nested keys to strings
 all_objects_str_keys = convert_keys_to_string(all_objects)
 # %%
@@ -88,18 +85,12 @@ input_sets_sorted = 'all_input_sets_sorted.json'
 with open(input_sets_sorted, 'w') as f:
     json.dump(sorted_sets_str, f)
 
-
-# %%
-
-# Specify the path to save the pickle file
+# Specify the path to save the Power Plants pickle file
 pickle_file_path1 = 'Plants_group.pickle'
-pickle_file_path2 = 'Plants_ungroup.pickle'
+pickle_file_path2 = 'Plants_ungroup_extended.pickle'
 
 # Save the dictionary as a pickle file
 with open(pickle_file_path1, 'wb') as f:
     pickle.dump(Plants_group, f)
 with open(pickle_file_path2, 'wb') as f:
-    pickle.dump(Plants_ungroup, f)
-
-
-
+    pickle.dump(Plants_ungroup_extended, f)

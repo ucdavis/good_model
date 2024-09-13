@@ -21,8 +21,8 @@ storage_efficiency = 0.7
 
 storage_flow_limit = 0.85
 
-transmission_efficiency = 0.972
+transmission_efficiency = 0.985
 
-time_periods = list(range(5000, 5780))
+time_periods = list(range(500, 572))
 
-hydro_capacity_limit = 0.05
+hydro_capacity_limit = 0.40  # the capacity factor for conventional hydropower resources across the US has remained relatively consistent through the years, between 35 and 45% (US DOE)

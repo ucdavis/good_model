@@ -81,14 +81,37 @@ class Solar:
                     else: 
                         self.transmission_cost = {}
 
-        if self.installed_capacity is not None: 
-            if self.resource_id_profile:
-                capacity = {(i,j): 0 for i in self.resource_id_profile for j in self.cost_class_ids}
-                first_key = next(iter(capacity))
-                capacity[first_key] = self.installed_capacity
-                self.installed_capacity = capacity
+        # if self.installed_capacity is not None:
+        #     if self.resource_id_profile:
+        #         capacity = {(i, j): 0 for i in self.resource_id_profile for j in self.cost_class_ids}
+        #         first_key = next(iter(capacity))
+        #         capacity[first_key] = self.installed_capacity
+        #         self.installed_capacity = capacity
 
-        
+        if self.installed_capacity is not None:
+            if self.resource_id_profile and self.cost_class_ids:
+                # Step 1: Sum up the total capacity for each resource_id across all cost classes
+                total_capacity_by_resource = {}
+                total_capacity_sum = 0  # Total of all capacities for all resource_ids
+
+                for resource_id in self.resource_id_profile:
+                    total_capacity_by_resource[resource_id] = sum(
+                        self.max_capacity.get((resource_id, cost_class), 0) for cost_class in self.cost_class_ids
+                    )
+                    total_capacity_sum += total_capacity_by_resource[resource_id]
+
+                # Step 2: Proportionally distribute the installed_capacity based on the summed capacities
+                capacity = {}
+                if total_capacity_sum > 0:
+                    for resource_id in self.resource_id_profile:
+                        # Calculate the proportion of total installed capacity for this resource_id
+                        proportion = total_capacity_by_resource[resource_id] / total_capacity_sum
+                        # Assign the proportional installed capacity to the first cost class
+                        first_cost_class = self.cost_class_ids[0]
+                        capacity[(resource_id, first_cost_class)] = self.installed_capacity * proportion
+
+                # Assign the distributed capacity to installed_capacity
+                self.installed_capacity = capacity
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
         # if the data is: 
@@ -126,7 +149,7 @@ class Solar:
 
         model.add_component(
             self.region_id + '_solarNew', 
-            pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals, bounds = (1e-08, None))
+            pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals, bounds = (1e-08, 1e-07))
         )
 
 

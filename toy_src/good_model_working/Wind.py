@@ -78,21 +78,44 @@ class Wind:
                             index = (resource_id, cost_class)
                             self.transmission_cost[index] = info
                     else: 
-                        self.transmission_cost= {}
+                        self.transmission_cost = {}
 
-        if self.installed_capacity is not None: 
-            if self.resource_id_profile:
-                capacity = {(i,j): 0 for i in self.resource_id_profile for j in self.cost_class_ids}
-                first_key = next(iter(capacity))
-                capacity[first_key] = self.installed_capacity
+        # if self.installed_capacity is not None:
+        #     if self.resource_id_profile:
+        #         capacity = {(i, j): 0 for i in self.resource_id_profile for j in self.cost_class_ids}
+        #         first_key = next(iter(capacity))
+        #         capacity[first_key] = self.installed_capacity
+        #         self.installed_capacity = capacity
+
+        if self.installed_capacity is not None:
+            if self.resource_id_profile and self.cost_class_ids:
+                # Step 1: Sum up the total capacity for each resource_id across all cost classes
+                total_capacity_by_resource = {}
+                total_capacity_sum = 0  # Total of all capacities for all resource_ids
+
+                for resource_id in self.resource_id_profile:
+                    total_capacity_by_resource[resource_id] = sum(
+                        self.max_capacity.get((resource_id, cost_class), 0) for cost_class in self.cost_class_ids
+                    )
+                    total_capacity_sum += total_capacity_by_resource[resource_id]
+
+                # Step 2: Proportionally distribute the installed_capacity based on the summed capacities
+                capacity = {}
+                if total_capacity_sum > 0:
+                    for resource_id in self.resource_id_profile:
+                        # Calculate the proportion of total installed capacity for this resource_id
+                        proportion = total_capacity_by_resource[resource_id] / total_capacity_sum
+                        # Assign the proportional installed capacity to the first cost class
+                        first_cost_class = self.cost_class_ids[0]
+                        capacity[(resource_id, first_cost_class)] = self.installed_capacity * proportion
+
+                # Assign the distributed capacity to installed_capacity
                 self.installed_capacity = capacity
-
-
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
         # if the data is: 
-        ## nested dictionary, ex: model.c_windprofile[w][t]
-        ## tuple dictionary, ex: model.c_windprofile[w,t]
+        # nested dictionary, ex: model.c_windprofile[w][t]
+        # tuple dictionary, ex: model.c_windprofile[w,t]
 
         model.add_component(
             self.region_id + '_windCap',
@@ -116,16 +139,15 @@ class Wind:
 
         model.add_component(
             self.region_id + '_windGenProfile',
-            pyomo.Param(model.wrc, model.t, initialize= self.gen_profile, default=0)
+            pyomo.Param(model.wrc, model.t, initialize=self.gen_profile, default=0)
         )
 
-            
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_windNew[w,c]
 
         model.add_component(
             self.region_id + '_windNew', 
-            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds = (1e-08, None))
+            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds=(1e-08, 1e-07))
         )
 
     def objective(self, model):
@@ -143,10 +165,10 @@ class Wind:
 
         elif hasattr(model, self.region_id + '_windCost'):
             
-            wind_indices = [(w,c) for w in model.wrc for c in model.cc if (w,c) in getattr(model, self.region_id + '_windCost')]
+            wind_indices = [(w, c) for w in model.wrc for c in model.cc if (w, c) in getattr(model, self.region_id + '_windCost')]
             wind_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_windCost')[w,c]) * getattr(model, self.region_id + '_windNew')[w,c]
-                for (w,c) in wind_indices
+                (getattr(model, self.region_id + '_windCost')[w, c]) * getattr(model, self.region_id + '_windNew')[w, c]
+                for (w, c) in wind_indices
                 ) 
 
         else:  
@@ -177,7 +199,7 @@ class Wind:
         results = {}
         
         capacity_dict = {}
-        cost_dict ={}
+        cost_dict = {}
 
         trans_var = getattr(model, self.region_id + '_windTransCost', 0)
 
@@ -187,8 +209,7 @@ class Wind:
             capacity_dict = defaultdict(int)  
 
             for key, value in capacity_var.items():
-                capacity_dict[key] += value 
-    
+                capacity_dict[key] += value
 
         if hasattr(model, self.region_id + '_windcost'): 
             cost_var = getattr(model, self.region_id + '_windcost').extract_values()
