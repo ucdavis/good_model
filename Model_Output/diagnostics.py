@@ -97,27 +97,47 @@ class GenerationMixAnalyzer:
         '''
         Purpose: Plots a stacked line chart of the hourly US generation mix.
         Inputs: hourly_mix: Dictionary output from get_hourly_gen_mix method
-        Output: Stacked line chart.
+        Output: Stacked line chart and prints the legend as text.
         '''
         # Convert the dictionary to DataFrame
         hourly_df = pd.DataFrame.from_dict(hourly_mix, orient='index').T
+
         # Check if the DataFrame is non-empty
         if hourly_df.empty:
             print("No data available to plot.")
             return
+
         # Extract the generation type (modify here if gen_type structure differs)
         hourly_df.columns = [col.split('_')[0] for col in hourly_df.columns]
+
         # Sum values with the same generation type (in case multiple splits are involved)
         hourly_df = hourly_df.groupby(level=0, axis=1).sum()
+
         # Normalize the index to numeric values (i.e., hours)
         hourly_df.index = pd.to_numeric(hourly_df.index, errors='coerce')
+
         # Sort the index (hours) to ensure smooth plotting
         hourly_df = hourly_df.sort_index()
-        # Generate colors for the plot
-        colors = sns.color_palette("Set2", len(hourly_df.columns))
+
+        # Define the order of generation types from bottom to top
+        gen_type_order = [
+            "Combined Cycle", "Nuclear", "Coal Steam", "Combustion Turbine", "Fossil Waste", "IGCC",
+            "Municipal Solid Waste", "O/G Steam", "New Battery Storage", "Non-Fossil Waste", "Biomass",
+            "Geothermal", "Hydro", "Wind", "Solar", "IMPORT", "Tires"
+        ]
+
+        # Reorder the columns according to the specified order
+        # Keep only the generation types that exist in hourly_df
+        gen_type_order = [gen_type for gen_type in gen_type_order if gen_type in hourly_df.columns]
+        hourly_df = hourly_df[gen_type_order]
+
+        # Generate distinct colors using a larger palette
+        colors = sns.color_palette("tab20", len(hourly_df.columns))
+
         # Prepare data for stackplot
         hours = hourly_df.index.values
         stack_data = [hourly_df[col].values for col in hourly_df.columns]
+
         # Plot stacked area chart
         plt.figure(figsize=(12, 6))
         plt.stackplot(hours, stack_data, labels=hourly_df.columns, colors=colors)
@@ -128,6 +148,11 @@ class GenerationMixAnalyzer:
         plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
         plt.tight_layout()
         plt.show()
+
+        # # Print the legend (generation types) as text below the plot
+        # print("\nLegend (Generation Types):")
+        # for col in hourly_df.columns:
+        #     print(f"- {col}")
 
     def display_annual_gen_mix(self, annual_mix):
         annual_df = pd.DataFrame.from_dict(annual_mix, orient='index', columns=['Capacity'])
@@ -146,12 +171,18 @@ class GenerationMixAnalyzer:
         for general_key in self.annual_mix_baseline:
             grouped_data[general_key] = []
             for specific_key in annual_mix:
-                if general_key.lower() == "solar" and "solar" in specific_key.lower():
+                if general_key.lower() == "solar" and "solar_current" in specific_key.lower():
                     grouped_data[general_key].append(specific_key)
-                elif general_key.lower() == "wind" and "wind" in specific_key.lower():
+                elif general_key.lower() == "wind" and "wind_current" in specific_key.lower():
                     grouped_data[general_key].append(specific_key)
                 elif general_key.lower() in specific_key.lower():
                     grouped_data[general_key].append(specific_key)
+
+        # Handle new solar and wind separately
+        if 'Wind_New' in annual_mix:
+            grouped_data['Wind_New'] = ['Wind_New']
+        if 'Solar_New' in annual_mix:
+            grouped_data['Solar_New'] = ['Solar_New']
 
         data = []
         for general_key, specific_keys in grouped_data.items():
@@ -164,8 +195,17 @@ class GenerationMixAnalyzer:
         annual_df['Capacity'] = annual_df['Capacity'].apply('{:.2f}'.format)
         annual_df['Percentage_Model'] = annual_df['Percentage_Model'].apply(lambda x: f'{x:.3f}%')
 
-        compared_df = pd.merge(baseline_df, annual_df, on='Resource', how='inner')
+        # Add Wind_New and Solar_New with no baseline equivalent
+        baseline_rows = ['Wind_New', 'Solar_New']
+        for new_category in baseline_rows:
+            if new_category in annual_df['Resource'].values:
+                new_row = pd.DataFrame({'Resource': [new_category], 'Percentage_Baseline': ['N/A']})
+                baseline_df = pd.concat([baseline_df, new_row], ignore_index=True)
+
+        # Merge and format the output
+        compared_df = pd.merge(baseline_df, annual_df, on='Resource', how='outer')
         compared_df = compared_df.loc[:, ['Resource', 'Percentage_Baseline', 'Percentage_Model']]
+
         print(compared_df.to_string())
 
     def plot_stacked_bar_chart(self, region_fuel_mix, percentage=False):

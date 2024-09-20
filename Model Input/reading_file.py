@@ -3,6 +3,7 @@ import numpy as np
 def load_data():
     import pandas as pd
     # Define the paths to your files
+    xlsx_file_path0 = "/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/eGRID2020.xlsx"
     xlsx_file_path1 = "/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/eGRID2021_data.xlsx"
     xlsx_file_path2 = "/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/needs_v6_transmission.csv"
     xlsx_file_path3 = "/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/needs_v617_parsed.csv"
@@ -21,6 +22,7 @@ def load_data():
     xlsx_file_path15 = "/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/Table 4-16.xlsx"
 
     # Specify the sheet name for the XLSX file
+    sheet_name0 = "eGRID2020"
     sheet_name1 = "PLNT21"
     sheet_name5 = "NEEDS v621_active"
     sheet_name6 = "Onshore"
@@ -35,6 +37,7 @@ def load_data():
     sheet_name15 = "Table 4-16"
 
     # Read XLSX files
+    Plant_old = pd.read_excel(xlsx_file_path0, sheet_name=sheet_name0, header=0, engine='openpyxl')
     Plant = pd.read_excel(xlsx_file_path1, sheet_name=sheet_name1, header=1)
     NEEDS = pd.read_excel(xlsx_file_path5, sheet_name=sheet_name5, header=0)
     Wind_generation_profile = pd.read_excel(xlsx_file_path6, sheet_name=sheet_name6, header=0)
@@ -53,7 +56,7 @@ def load_data():
     Parsed = pd.read_csv(xlsx_file_path3)
     Input = pd.read_csv(xlsx_file_path4, encoding="latin1")
     # Return the loaded dataframes
-    return (Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity, Wind_capital_cost,
+    return (Plant_old, Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity, Wind_capital_cost,
             Solar_regional_capacity, Solar_generation_profile, Solar_capital_cost_photo, Solar_capacity_factor, Regional_Cost, Unit_Cost)
 
 

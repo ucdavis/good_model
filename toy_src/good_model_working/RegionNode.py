@@ -76,7 +76,3 @@ class RegionNode():
                 results[key] = obj.results(model, results)
 
         return results
-
-
-        
-        

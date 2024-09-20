@@ -149,30 +149,29 @@ class Solar:
 
         model.add_component(
             self.region_id + '_solarNew', 
-            pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals, bounds = (1e-08, 1e-07))
+            pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals, bounds=(1e-08, None))
         )
 
 
     def objective(self, model):
         # Simplify the construction of the objective function
-
         solar_cost_term = 0
 
         if hasattr(model, self.region_id + '_solarTransCost') and hasattr(model, self.region_id + '_solarCost'):
 
-            solar_indices = [(s,c) for s in model.src for c in model.cc if (s,c) in getattr(model, self.region_id + '_solarCost')]
+            solar_indices = [(s, c) for s in model.src for c in model.cc if (s, c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_solarCost')[s,c] + getattr(model, self.region_id + '_solarTransCost')[s,c]) 
-                * getattr(model, self.region_id + '_solarNew')[s,c] 
+                (((getattr(model, self.region_id + '_solarCost')[s, c] * 1000) + (getattr(model, self.region_id + '_solarTransCost')[s, c]))
+                * getattr(model, self.region_id + '_solarNew')[s, c])
                 for (s,c) in solar_indices
             ) 
         
         elif hasattr(model, self.region_id + '_solarCost'): 
             
-            solar_indices = [(s,c) for s in model.src for c in model.cc if (s,c) in getattr(model, self.region_id + '_solarCost')]
+            solar_indices = [(s, c) for s in model.src for c in model.cc if (s, c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_solarCost')[s,c]) * getattr(model, self.region_id + '_solarNew')[s,c] 
-                for (s,c) in solar_indices
+                (getattr(model, self.region_id + '_solarCost')[s, c]) * (getattr(model, self.region_id + '_solarNew')[s, c]) * 1000
+                for (s, c) in solar_indices
             ) 
         
         else: 

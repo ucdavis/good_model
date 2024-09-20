@@ -147,7 +147,7 @@ class Wind:
 
         model.add_component(
             self.region_id + '_windNew', 
-            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds=(1e-08, 1e-07))
+            pyomo.Var(model.wrc, model.cc, within=pyomo.NonNegativeReals, bounds=(1e-08, None))
         )
 
     def objective(self, model):
@@ -158,8 +158,8 @@ class Wind:
 
             wind_indices = [(w,c) for w in model.wrc for c in model.cc if (w,c) in getattr(model, self.region_id + '_windCost')]
             wind_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_windCost')[w,c] + getattr(model, self.region_id + '_windTransCost')[w,c]) 
-                * getattr(model, self.region_id + '_windNew')[w,c]
+                (((getattr(model, self.region_id + '_windCost')[w, c] * 1000) + (getattr(model, self.region_id + '_windTransCost')[w,c]))
+                * getattr(model, self.region_id + '_windNew')[w, c])
                 for (w,c) in wind_indices
                 ) 
 
@@ -167,7 +167,7 @@ class Wind:
             
             wind_indices = [(w, c) for w in model.wrc for c in model.cc if (w, c) in getattr(model, self.region_id + '_windCost')]
             wind_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_windCost')[w, c]) * getattr(model, self.region_id + '_windNew')[w, c]
+                (getattr(model, self.region_id + '_windCost')[w, c]) * (getattr(model, self.region_id + '_windNew')[w, c]) * 1000
                 for (w, c) in wind_indices
                 ) 
 

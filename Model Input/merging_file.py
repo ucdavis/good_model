@@ -49,7 +49,7 @@ def map_fuel_type(row_input):
 
 # Create a function to assign fuel costs
 def assign_fuel_costs(input_df):
-    selected_columns = ["UniqueID", "RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
+    selected_columns = ["UniqueID", "ORISPL", "PLNGENAN",  "RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
                         "UTLSRVNM", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
 
     merged_short = input_df[selected_columns].copy()
@@ -196,7 +196,7 @@ def adjust_nuclear_generation_cost(df):
     return df
 
 
-def assign_em_rates(input_df):
+def assign_em_rates(input_df, input_df_old):
 
     input_df.loc[input_df["FuelType"].isin(["Pumps", "Hydro", "Geothermal", "Non-Fossil", "EnerStor", "Nuclear", "Solar", "Wind"]), ["PLCO2RTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLNOXRTA"]] = 0
     for r in range(input_df.shape[0]):
@@ -279,8 +279,15 @@ def assign_em_rates(input_df):
 
     input_df['PLPMTRO'] = input_df['PLPMTRO'] * input_df['HeatRate'] / 1000
 
-    # Special condition for outliner (needs to be fixed)
-    input_df.loc[input_df["PLCO2RTA"] > 10000, ["PLCO2RTA", "PLSO2RTA", "PLCH4RTA", "PLN2ORTA", "PLNOXRTA"]] /= 1000
+    # Adjust emissions for outliers based on conditions
+    for r in range(input_df.shape[0]):
+        if input_df.at[r, 'FuelType'] != 'Oil' and input_df.at[r, 'PLCO2RTA'] > 5000:
+            if input_df.at[r, 'PLNGENAN'] > 1000:
+                orispl = input_df.at[r, 'ORISPL']
+                old_values = input_df_old[(input_df_old['ORISPL'] == orispl)]
+                if not old_values.empty:
+                    input_df.loc[r, ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']] = old_values[
+                        ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']].values[0]
 
     return input_df
 

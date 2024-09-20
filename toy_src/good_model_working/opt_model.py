@@ -219,7 +219,6 @@ class Opt_Model:
                 if valid_solar_indices is not None: 
                     solar_terms = pyomo.quicksum(
                         ((c_solar_cap[s, c] + x_solar_var[s, c]) * c_solar_profile[s, t])
-                        # ((c_solar_cap[s, c]) * c_solar_profile[s, t])
                         for s in valid_solar_indices
                         for c in self.model.cc
                     )
@@ -228,7 +227,6 @@ class Opt_Model:
                 if valid_wind_indices is not None: 
                     wind_terms = pyomo.quicksum(
                         ((c_wind_cap[w, c] + x_wind_var[w, c]) * c_wind_profile[w, t])
-                        # ((c_wind_cap[w, c]) * c_wind_profile[w, t])
                         for w in valid_wind_indices
                         for c in self.model.cc
                     )
@@ -270,7 +268,7 @@ class Opt_Model:
                     + generation_terms 
                     + import_terms
                     - export_terms
-                    - (demand_terms)
+                    - demand_terms
                     >= 0
                 )
 
@@ -350,8 +348,8 @@ class Opt_Model:
             node_results = region_data['object'].results(self.model, self.results)
 
             # Adding solar and wind generation to the node results
-            solar_generation = self.get_solar_generation(region_id)
-            wind_generation = self.get_wind_generation(region_id)
+            solar_current, solar_new = self.get_solar_generation(region_id)
+            wind_current, wind_new = self.get_wind_generation(region_id)
 
             if 'generator' not in node_results:
                 node_results['generator'] = {'capacity': {}, 'cost': {}}
@@ -359,8 +357,11 @@ class Opt_Model:
             if 'capacity' not in node_results['generator']:
                 node_results['generator']['capacity'] = {}
 
-            node_results['generator']['capacity']['Solar'] = solar_generation
-            node_results['generator']['capacity']['Wind'] = wind_generation
+            # Store the current and new solar/wind generation separately
+            node_results['generator']['capacity']['Solar_Current'] = solar_current
+            node_results['generator']['capacity']['Solar_New'] = solar_new
+            node_results['generator']['capacity']['Wind_Current'] = wind_current
+            node_results['generator']['capacity']['Wind_New'] = wind_new
 
             self.results['nodes'][region_id] = node_results
 
@@ -371,45 +372,72 @@ class Opt_Model:
         return self.results
 
     def get_solar_generation(self, region_id):
-        solar_gen = {}
+        solar_gen_current = {}
+        solar_gen_new = {}
         c_solar_cap = getattr(self.model, region_id + '_solarCap', 0)
         c_solar_profile = getattr(self.model, region_id + '_solarGenProfile', 0)
+        x_solar_var = getattr(self.model, region_id + '_solarNew', None)
 
         valid_solar_indices = None
         if c_solar_profile != 0:
             valid_solar_indices = set([s for s, _ in c_solar_profile])
 
         for t in self.model.t:
-            solar_terms = 0
+            solar_terms_current = 0
+            solar_terms_new = 0
             if valid_solar_indices is not None:
-                solar_terms = sum(
-                    (c_solar_cap[s, c] * c_solar_profile[s, t])
-
+                # Current solar generation
+                solar_terms_current = sum(
+                    (c_solar_cap[s, c]) * c_solar_profile[s, t]
                     for s in valid_solar_indices
                     for c in self.model.cc
                 )
-            solar_gen[t] = solar_terms
-        return solar_gen
+                # New solar generation (from x_solar_var)
+                if x_solar_var is not None:
+                    solar_terms_new = sum(
+                        (x_solar_var[s, c].value) * c_solar_profile[s, t]
+                        for s in valid_solar_indices
+                        for c in self.model.cc
+                    )
+
+            solar_gen_current[t] = solar_terms_current
+            solar_gen_new[t] = solar_terms_new
+
+        return solar_gen_current, solar_gen_new
 
     def get_wind_generation(self, region_id):
-        wind_gen = {}
+        wind_gen_current = {}
+        wind_gen_new = {}
         c_wind_cap = getattr(self.model, region_id + '_windCap', 0)
         c_wind_profile = getattr(self.model, region_id + '_windGenProfile', 0)
+        x_wind_var = getattr(self.model, region_id + '_windNew', None)
 
         valid_wind_indices = None
         if c_wind_profile != 0:
             valid_wind_indices = set([w for w, _ in c_wind_profile])
 
         for t in self.model.t:
-            wind_terms = 0
+            wind_terms_current = 0
+            wind_terms_new = 0
             if valid_wind_indices is not None:
-                wind_terms = sum(
-                    (c_wind_cap[w, c] * c_wind_profile[w, t])
+                # Current wind generation
+                wind_terms_current = sum(
+                    (c_wind_cap[w, c]) * c_wind_profile[w, t]
                     for w in valid_wind_indices
                     for c in self.model.cc
                 )
-            wind_gen[t] = wind_terms
-        return wind_gen
+                # New wind generation (from x_wind_var)
+                if x_wind_var is not None:
+                    wind_terms_new = sum(
+                        (x_wind_var[w, c].value) * c_wind_profile[w, t]
+                        for w in valid_wind_indices
+                        for c in self.model.cc
+                    )
+
+            wind_gen_current[t] = wind_terms_current
+            wind_gen_new[t] = wind_terms_new
+
+        return wind_gen_current, wind_gen_new
 
     def get_results_hourly(self):
         self.results = {

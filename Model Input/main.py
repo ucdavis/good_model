@@ -12,7 +12,7 @@ import pickle
 import warnings
 warnings.filterwarnings("ignore")
 # %% Loading Input Data
-(Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity,
+(Plant_old, Plant, Transmission, Parsed, Input, NEEDS, Wind_generation_profile, Load, Wind_onshore_capacity,
  Wind_capital_cost, Solar_regional_capacity, Solar_generation_profile, Solar_capital_cost_photov,
  Solar_capacity_factor, Regional_Cost, Unit_Cost) = load_data()
 # Merging power plants data
@@ -22,7 +22,7 @@ Plant_short_fixed_fuelC = assign_fuel_costs(Plant_short)
 Plant_short_fixed_fuelC_coal = adjust_coal_generation_cost(Plant_short_fixed_fuelC)
 Plant_short_fixed_fuelC_coal_Nuc = adjust_nuclear_generation_cost(Plant_short_fixed_fuelC)
 # Replacing missing fuel cost
-Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC_coal_Nuc)
+Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC_coal_Nuc, Plant_old)
 # Aggregation of power plants
 Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 4, 1, 1, 1)
 # Aggregating the power plants
