@@ -82,6 +82,7 @@ class ModelOutput:
         self.emission_powerplant_grouped = None
         self.df_pivot1 = None
         self.output = None
+
     def load_data(self):
         # Load the dictionaries from the pickle files
         with open(self.pickle_file_path1, 'rb') as f:

@@ -1,10 +1,10 @@
 import pyomo.environ as pyomo
-from .constants import time_periods
+# from .constants import time_periods
+from .user_inputs import time_periods, solar_capital_cost
 from collections import defaultdict
 
 class Solar:
     def __init__(self, region_id, solar_data):
-        
         self.region_id = region_id
         self.installed_capacity = 0
         self.gen_profile = {}
@@ -12,8 +12,8 @@ class Solar:
         self.cost = {}
         self.transmission_cost = {}
         self.resource_id_profile = []
-        self.cost_class_ids = []
         self.time_periods = time_periods
+        self.cost_class_ids = []
 
         for data in solar_data:
 
@@ -43,8 +43,8 @@ class Solar:
                     if values: 
                         for cost_class, info in values.items():
                             self.cost_class_ids.append(cost_class)
-                            index_key = (resource_id, cost_class)
-                            self.max_capacity[index_key] = info
+                            index = (resource_id, cost_class)
+                            self.max_capacity[index] = info
                     else: 
                         self.max_capacity = {}
                     
@@ -70,14 +70,14 @@ class Solar:
 
             elif data_type == 'solar_transmission_cost': 
                  
-                 for params in parameters: 
+                for params in parameters:
                     resource_id = str(int(params.get('resource_class', 0)))
                     values = params.get('transmission_cost', {})
 
                     if values: 
                         for cost_class, info in values.items():
-                            index_key = (resource_id, cost_class)
-                            self.transmission_cost[index_key] = info
+                            index = (resource_id, cost_class)
+                            self.transmission_cost[index] = info
                     else: 
                         self.transmission_cost = {}
 
@@ -112,6 +112,7 @@ class Solar:
 
                 # Assign the distributed capacity to installed_capacity
                 self.installed_capacity = capacity
+
     def parameters(self, model):
         # parameters are indexed based on the data structure passed via initialize
         # if the data is: 
@@ -142,7 +143,6 @@ class Solar:
             self.region_id + '_solarTransCost', 
             pyomo.Param(model.src, model.cc, initialize=self.transmission_cost, default=0)
         )        
-        
 
     def variables(self, model):
         # decision variables all indexed as, ex: model.x_solarNew[s,c]
@@ -152,7 +152,6 @@ class Solar:
             pyomo.Var(model.src, model.cc, within=pyomo.NonNegativeReals, bounds=(1e-08, None))
         )
 
-
     def objective(self, model):
         # Simplify the construction of the objective function
         solar_cost_term = 0
@@ -161,25 +160,24 @@ class Solar:
 
             solar_indices = [(s, c) for s in model.src for c in model.cc if (s, c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (((getattr(model, self.region_id + '_solarCost')[s, c] * 1000) + (getattr(model, self.region_id + '_solarTransCost')[s, c]))
+                (((getattr(model, self.region_id + '_solarCost')[s, c] * 1000 + solar_capital_cost) + (getattr(model, self.region_id + '_solarTransCost')[s, c]))
                 * getattr(model, self.region_id + '_solarNew')[s, c])
-                for (s,c) in solar_indices
-            ) 
+                for (s, c) in solar_indices
+                )
         
         elif hasattr(model, self.region_id + '_solarCost'): 
             
             solar_indices = [(s, c) for s in model.src for c in model.cc if (s, c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_solarCost')[s, c]) * (getattr(model, self.region_id + '_solarNew')[s, c]) * 1000
+                (getattr(model, self.region_id + '_solarCost')[s, c]) * (getattr(model, self.region_id + '_solarNew')[s, c]) * 1000 + solar_capital_cost
                 for (s, c) in solar_indices
-            ) 
+                )
         
         else: 
 
             solar_cost_term = 0
 
         return solar_cost_term
-
 
     def constraints(self, model):
     
@@ -213,8 +211,7 @@ class Solar:
             capacity_dict = defaultdict(int)  
 
             for key, value in capacity_var.items():
-                capacity_dict[key] += value 
-    
+                capacity_dict[key] += value
 
         if hasattr(model, self.region_id + '_solarcost'): 
             cost_var = getattr(model, self.region_id + '_solarcost').extract_values()
@@ -227,7 +224,7 @@ class Solar:
 
         results = {
             'capacity': capacity_dict,
-            'cost': cost_dict
+            'cost': cost_dict,
             }
 
         return results

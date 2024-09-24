@@ -5,8 +5,7 @@ import pyomo.environ as pyomo
 import networkx as nx
 import json
 from datetime import date
-from .constants import time_periods
-
+from .user_inputs import time_periods
 '''
     utils.py contains basic utility functions to support
     evaluation of model runs, including writing the model 
@@ -21,21 +20,20 @@ from .constants import time_periods
 '''
 
 # variables used in the model:
-
 gen_to_remove = [
-        #'Fossil Waste', 
-        #'Municipal Solid Waste', 
-        #'Non-Fossil Waste', 
-        'Pumped Storage',
-        'Fuel Cell',
-        'Landfill Gas', 
-        #"Energy Storage", 
-        "Solar PV", 
-        "Onshore Wind", 
-        # 'New Battery Storage', 
-        # 'IMPORT', 
+        #'Fossil Waste',
+        #'Municipal Solid Waste',
+        #'Non-Fossil Waste',
+        # 'Pumped Storage',
+        # 'Fuel Cell',
+        # 'Landfill Gas',
+        #"Energy Storage",
+        "Solar PV",
+        "Onshore Wind",
+        # 'New Battery Storage',
+        # 'IMPORT',
         #'Tires',
-        'Offshore Wind', 
+        'Offshore Wind',
         'Solar Thermal'
         ]
 

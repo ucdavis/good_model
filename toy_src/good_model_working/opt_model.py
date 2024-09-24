@@ -1,5 +1,6 @@
 import pyomo.environ as pyomo
-from .constants import time_periods
+# from .constants import time_periods
+from .user_inputs import time_periods
 from .RegionNode import RegionNode
 from .Transmission import Transmission
 from pyomo.common.timing import TicTocTimer
@@ -25,19 +26,25 @@ class Opt_Model:
         # Print the total demand for all regions
         print(f"Total demand for all regions: {total_demand_all_regions}")
 
-    def __init__(self, model_data, solver_name):
+    def __init__(self, model_data, solver_name, deactivate_policy=False):
         
+        self.timer = None
+        self.results = None
         self.solver_name = solver_name
         self.sets = model_data.get('sets', {})
         self.graph = model_data.get('graph', {})
+        self.rfs_policy = model_data.get('rfs_policy', {})
         self.region_list = self.sets.get('region', [])
+        # self.time_periods = model_data.get('time_periods', {})
         self.time_periods = time_periods
         self.solar_ids = self.sets.get('solar_rc', [])
         self.wind_ids = self.sets.get('wind_rc', [])
         self.cost_class_ids = self.sets.get('cost_class', [])
         self.gen_type = self.sets.get('gen_type', [])
-
+        self.deactivate_policy = deactivate_policy
         self.test_nodes = model_data.get('test_nodes', False)
+        self.cons_deactivate = model_data.get('constraint_deactivation', [])
+        self.deactivate_policy = deactivate_policy or 'policy' in self.cons_deactivate
         if self.test_nodes: 
             self.graph = model_data.get('subgraph', {})
             self.region_list = model_data.get('subgraph_nodes', [])
@@ -78,7 +85,6 @@ class Opt_Model:
 
                 link['object'] = Transmission(source, target, **link)
 
-            
     def build_model(self):
 
         self.build_sets()
@@ -122,7 +128,6 @@ class Opt_Model:
 
                 link['object'].parameters(self.model)
 
-            
     def build_variables(self):
 
         for region_id, region_data in self.graph._node.items():
@@ -134,7 +139,6 @@ class Opt_Model:
             for target, link in adjacency.items():
 
                link['object'].variables(self.model)
-
 
     def build_objective(self):
 
@@ -157,12 +161,20 @@ class Opt_Model:
         self.local_constraints()
         self.timer.toc("Local Constraints built")
 
-        self.transmission_constraints() 
+        self.transmission_constraints()
         self.timer.toc("Transmission constraints built")
 
         self.timer.toc("Starting balanacing constraint...")
         self.region_balancing_constraint()
         self.timer.toc("Balancing constraint built")
+
+        self.timer.toc("Starting policy constraint...")
+        self.region_policy_constraint()
+        self.timer.toc("Policy constraint built")
+
+        self.timer.toc("Starting oil constraint...")
+        self.oil_constraint()
+        self.timer.toc("Oil constraint built")
 
         if self.test_cons:
             self.constraint_deactivation()
@@ -174,15 +186,15 @@ class Opt_Model:
             
             region_data['object'].constraints(self.model)
 
-    def transmission_constraints(self): 
+    def transmission_constraints(self):
 
         for source, adjacency in self.graph._adj.items():
 
-            for target, link in adjacency.items():  
+            for target, link in adjacency.items():
 
                 link['object'].constraints(self.model)
 
-    def region_balancing_constraint(self): 
+    def region_balancing_constraint(self):
 
         self.model.energy_balancing_rule = pyomo.ConstraintList()
 
@@ -211,7 +223,7 @@ class Opt_Model:
             x_generation_var = getattr(self.model, r + '_generation', None)
             valid_gen_types = None
             if x_generation_var is not None:  
-                valid_gen_types = set([g for g,_ in x_generation_var])  
+                valid_gen_types = set([g for g, _ in x_generation_var])
 
             for t in self.model.t: 
 
@@ -259,8 +271,7 @@ class Opt_Model:
                         export_terms += (getattr(self.model, export_link + '_trans')[t] 
                             * getattr(self.model, export_link + '_efficiency')
                         )
-
-                                
+           
                 cons_expr = (
                     solar_terms
                     + wind_terms
@@ -276,7 +287,118 @@ class Opt_Model:
                    cons_expr
                 )
 
-    def constraint_deactivation(self): 
+    def region_policy_constraint(self):
+        if self.deactivate_policy:
+            print("Policy constraint is deactivated.")
+            return  # Skip adding the policy constraint if the flag is set
+        self.model.rfs_balancing_rule = pyomo.ConstraintList()
+
+        for r in self.model.r:
+            c_solar_cap = getattr(self.model, r + '_solarCap', 0)
+            c_solar_profile = getattr(self.model, r + '_solarGenProfile', 0)
+            x_solar_var = getattr(self.model, r + '_solarNew', None)
+
+            valid_solar_indices = None
+            if c_solar_profile != 0:
+                valid_solar_indices = set([s for s, _ in c_solar_profile])
+
+            c_wind_cap = getattr(self.model, r + '_windCap', 0)
+            c_wind_profile = getattr(self.model, r + '_windGenProfile', 0)
+            x_wind_var = getattr(self.model, r + '_windNew', None)
+
+            valid_wind_indices = None
+            if c_wind_profile != 0:
+                valid_wind_indices = set([w for w, _ in c_wind_profile])
+
+            x_generation_var = getattr(self.model, r + '_generation', None)
+            valid_gen_types = None
+            if x_generation_var is not None:
+                valid_gen_types = set([g for g, _ in x_generation_var])
+
+            # Initialize terms for policy constraint
+            total_wind_solar = 0
+            total_generation = 0
+            total_hydro_above_threshold = 0  # Hydro capacity above the threshold
+
+            # Loop through all generators in the region
+            for gen_type in valid_gen_types:
+                gen_max = getattr(self.model, r + '_genMax')[gen_type]  # Access directly like a dictionary
+                if "Hydro" in gen_type and gen_max > 40:
+                    # If it's a hydro generator with capacity > 40 MW, include it in the hydro terms
+                    for t in self.model.t:
+                        hydro_terms = pyomo.quicksum(
+                            x_generation_var[gen_type, t]
+                            for t in self.model.t
+                        )
+                        total_hydro_above_threshold += hydro_terms
+
+            for t in self.model.t:
+                solar_terms = 0
+                if valid_solar_indices is not None:
+                    solar_terms = pyomo.quicksum(
+                        ((c_solar_cap[s, c] + (x_solar_var[s, c] if x_solar_var else 0)) * c_solar_profile[s, t])
+                        for s in valid_solar_indices
+                        for c in self.model.cc
+                    )
+
+                wind_terms = 0
+                if valid_wind_indices is not None:
+                    wind_terms = pyomo.quicksum(
+                        ((c_wind_cap[w, c] + (x_wind_var[w, c] if x_wind_var else 0)) * c_wind_profile[w, t])
+                        for w in valid_wind_indices
+                        for c in self.model.cc
+                    )
+
+                generation_terms = 0
+                if valid_gen_types is not None:
+                    generation_terms = pyomo.quicksum(
+                        x_generation_var[g, t]
+                        for g in valid_gen_types
+                    )
+
+                # Add solar and wind to policy constraint
+                total_wind_solar += solar_terms + wind_terms
+                total_generation += generation_terms
+
+            # Add policy constraint to ensure wind + solar is at least X% of generation
+            self.model.rfs_balancing_rule.add(
+                total_wind_solar >= self.rfs_policy * (total_generation - total_wind_solar - total_hydro_above_threshold)
+            )
+
+    def oil_constraint(self):
+        self.model.oil_balancing_rule = pyomo.ConstraintList()
+
+        for r in self.model.r:
+            x_generation_var = getattr(self.model, r + '_generation', None)
+            valid_gen_types = None
+            if x_generation_var is not None:
+                valid_gen_types = set([g for g, _ in x_generation_var])
+
+            total_generation = 0
+            total_oil = 0
+
+            # Loop through all generators in the region
+            for gen_type in valid_gen_types:
+
+                if "Oil" in gen_type:
+                    for t in self.model.t:
+                        oil_terms = x_generation_var[gen_type, t]
+                        total_oil += oil_terms
+
+                generation_terms = 0
+                if valid_gen_types is not None:
+                    generation_terms = pyomo.quicksum(
+                        x_generation_var[g, t] for g in valid_gen_types for t in self.model.t
+                    )
+
+                total_generation += generation_terms
+
+            # Add policy constraint to ensure oil is at least 1% of total generation
+            self.model.oil_balancing_rule.add(
+                total_oil <= 0.0001 * total_generation
+            )
+
+    def constraint_deactivation(self):
 
         for constraint in self.cons_deactivate: 
             if constraint == 'storage':
@@ -311,7 +433,11 @@ class Opt_Model:
                     gen_max = getattr(self.model, r + '_genMax', None)
                     if gen_max is not None: 
                         getattr(self.model, r + '_gen_limits_rule').deactivate()
-        
+
+            if constraint == 'policy' and hasattr(self.model, 'rfs_balancing_rule'):
+                print("Policy constraint deactivated.")
+                getattr(self.model, 'rfs_balancing_rule').deactivate()
+
             print(f'{constraint} constraints deactivated')
             
     def solve_model(self):
@@ -319,24 +445,6 @@ class Opt_Model:
         solver = pyomo.SolverFactory(self.solver_name)
         self.results = solver.solve(self.model, tee=True)
 
-    #
-    # def get_results(self):
-    #
-    #     self.results = {
-    #         'links': {},
-    #         'nodes': {}
-    #     }
-    #
-    #     for region_id, region_data in self.graph._node.items():
-    #         self.results['nodes'][region_id] = region_data['object'].results(self.model, self.results)
-    #
-    #     for source, adjacency in self.graph._adj.items():
-    #
-    #         for target, link in adjacency.items():
-    #             self.results['links'][f'{source}_{target}'] = link['object'].results(self.model, self.results)
-    #
-    #     return self.results
-    #
     def get_results(self):
 
         self.results = {
@@ -395,7 +503,7 @@ class Opt_Model:
                 # New solar generation (from x_solar_var)
                 if x_solar_var is not None:
                     solar_terms_new = sum(
-                        (x_solar_var[s, c].value) * c_solar_profile[s, t]
+                        x_solar_var[s, c].value * c_solar_profile[s, t]
                         for s in valid_solar_indices
                         for c in self.model.cc
                     )
@@ -469,3 +577,4 @@ class Opt_Model:
                 print(f"Region {region_id}, Time {t}: Generation = {generation_total}, Demand = {demand_total}")
 
         print(f"Total generation: {total_generation}, Total demand: {total_demand}")
+

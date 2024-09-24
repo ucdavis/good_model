@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
-
+# %%
 class GenerationMixAnalyzer:
     def __init__(self):
         self.pickle_file_path = '/Users/haniftayarani/good_model/toy_src/results.pickle'
@@ -83,12 +83,19 @@ class GenerationMixAnalyzer:
             if gen_dict:
                 capacity_dict = gen_dict.get('capacity', {})
                 for gen_type, dispatch_profile in capacity_dict.items():
+                    # Split gen_type to capture both 'current' and 'new'
                     parts = gen_type.split('_')
-                    fuel_type = parts[1] if len(parts) > 1 else gen_type
-                    if fuel_type not in fuel_mix:
-                        fuel_mix[fuel_type] = 0
+                    base_fuel_type = parts[0]  # Solar or Wind
+                    status = parts[1] if len(parts) > 1 else 'Current'  # Current or New
+
+                    fuel_key = f"{base_fuel_type}_{status}"  # This ensures both new and current are tracked
+
+                    if fuel_key not in fuel_mix:
+                        fuel_mix[fuel_key] = 0
+
                     for capacity in dispatch_profile.values():
-                        fuel_mix[fuel_type] += capacity
+                        fuel_mix[fuel_key] += capacity
+
             region_fuel_mix[region] = fuel_mix
 
         return region_fuel_mix
@@ -164,47 +171,53 @@ class GenerationMixAnalyzer:
 
     def compare_annual_mix_to_baseline(self, annual_mix):
         baseline_df = pd.DataFrame(self.annual_mix_baseline.items(), columns=['Resource', 'Value'])
-        baseline_df['Value'] = baseline_df['Value'] * 100
-        baseline_df['Percentage_Baseline'] = baseline_df['Value'].apply(lambda x: f'{x:.3f}%')
+        baseline_df['Value_Percent'] = baseline_df['Value'] * 100
+        baseline_df['Percentage_Baseline'] = baseline_df['Value_Percent'].apply(lambda x: f'{x:.3f}%')
 
         grouped_data = {}
         for general_key in self.annual_mix_baseline:
             grouped_data[general_key] = []
             for specific_key in annual_mix:
-                if general_key.lower() == "solar" and "solar_current" in specific_key.lower():
+                if general_key == "Solar" and "Solar_Current" in specific_key:
                     grouped_data[general_key].append(specific_key)
-                elif general_key.lower() == "wind" and "wind_current" in specific_key.lower():
+                elif general_key == "Wind" and "Wind_Current" in specific_key:
                     grouped_data[general_key].append(specific_key)
                 elif general_key.lower() in specific_key.lower():
                     grouped_data[general_key].append(specific_key)
 
         # Handle new solar and wind separately
-        if 'Wind_New' in annual_mix:
-            grouped_data['Wind_New'] = ['Wind_New']
-        if 'Solar_New' in annual_mix:
-            grouped_data['Solar_New'] = ['Solar_New']
+        grouped_data['Wind_New'] = ['Wind_New'] if 'Wind_New' in annual_mix else []
+        grouped_data['Solar_New'] = ['Solar_New'] if 'Solar_New' in annual_mix else []
 
         data = []
         for general_key, specific_keys in grouped_data.items():
-            total_value = sum(annual_mix[key] for key in specific_keys)
+            if general_key != "Solar":  # Avoid summing "Solar_Current" and "Solar_New"
+                total_value = sum(annual_mix[key] for key in specific_keys)
+            else:
+                total_value = sum(annual_mix[key] for key in specific_keys if key == "Solar_Current")  # Handle Solar separately
             data.append({"Resource": general_key, "Capacity": total_value})
 
         annual_df = pd.DataFrame(data)
         total_capacity = annual_df['Capacity'].sum()
         annual_df['Percentage_Model'] = (annual_df['Capacity'] / total_capacity) * 100
-        annual_df['Capacity'] = annual_df['Capacity'].apply('{:.2f}'.format)
         annual_df['Percentage_Model'] = annual_df['Percentage_Model'].apply(lambda x: f'{x:.3f}%')
 
         # Add Wind_New and Solar_New with no baseline equivalent
         baseline_rows = ['Wind_New', 'Solar_New']
         for new_category in baseline_rows:
             if new_category in annual_df['Resource'].values:
-                new_row = pd.DataFrame({'Resource': [new_category], 'Percentage_Baseline': ['N/A']})
+                new_row = pd.DataFrame({
+                    'Resource': [new_category],
+                    'Value': [None],
+                    'Value_Percent': [None],
+                    'Percentage_Baseline': ['N/A']
+                })
                 baseline_df = pd.concat([baseline_df, new_row], ignore_index=True)
 
+        baseline_df["Value"] = baseline_df["Value"] * self.annual_total_mwh_baseline
         # Merge and format the output
         compared_df = pd.merge(baseline_df, annual_df, on='Resource', how='outer')
-        compared_df = compared_df.loc[:, ['Resource', 'Percentage_Baseline', 'Percentage_Model']]
+        compared_df = compared_df[['Resource', 'Percentage_Baseline', 'Percentage_Model']]
 
         print(compared_df.to_string())
 
@@ -246,3 +259,23 @@ class GenerationMixAnalyzer:
         plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
         plt.show()
+
+    def get_total_solar_wind_capacity(self):
+        total_solar_capacity = 0
+        total_wind_capacity = 0
+
+        # Loop through each region (node) in the results
+        for region, region_data in self.loaded_results["nodes"].items():
+            # Check if the region has a generator with capacity data
+            if "generator" in region_data and "capacity" in region_data["generator"]:
+                capacities = region_data["generator"]["capacity"]
+
+                # Add the solar and wind capacities if they exist (sum all time periods)
+                if "Solar_Current" in capacities:
+                    total_solar_capacity += sum(capacities["Solar_New"].values())
+                if "Wind_Current" in capacities:
+                    total_wind_capacity += sum(capacities["Wind_New"].values())
+
+        # Print the total solar and wind capacity after the loop completes
+        print(f"Total Solar Capacity: {total_solar_capacity}")
+        print(f"Total Wind Capacity: {total_wind_capacity}")

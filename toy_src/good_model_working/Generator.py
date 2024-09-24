@@ -1,7 +1,7 @@
 import pyomo.environ as pyomo
 from .utils import gen_to_remove
-
 from .constants import hydro_capacity_limit
+
 
 class Generator:
     def __init__(self, region_id, generators):
