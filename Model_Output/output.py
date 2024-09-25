@@ -4,6 +4,7 @@ import folium
 from folium.plugins import MarkerCluster
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 # %%
 
 
@@ -11,6 +12,8 @@ class ModelOutput:
     def __init__(self):
 
 
+        self.valid_data1 = None
+        self.valid_data = None
         self.pickle_file_path1 = '/Users/haniftayarani/good_model/toy_src/results.pickle'
         self.pickle_file_path2 = '/Users/haniftayarani/good_model/Model Input/Plants_group.pickle'
         self.pickle_file_path3 = '/Users/haniftayarani/good_model/Model Input/Plants_ungroup_extended.pickle'
@@ -576,12 +579,12 @@ class ModelOutput:
 
         # Step 4: Group data by the chosen region and calculate mean emissions per MWh
         # Ensure that the generation column does not include zero or NaN values to avoid division errors
-        valid_data = self.df_pivot3[self.df_pivot3[generation_column] > 0]
+        self.valid_data = self.df_pivot3[self.df_pivot3[generation_column] > 0]
 
-        valid_data['Emissions_per_MWh'] = valid_data[emission_criteria] / valid_data[generation_column]
+        self.valid_data['Emissions_per_MWh'] = self.valid_data[emission_criteria] / self.valid_data[generation_column]
 
         # Calculate mean emissions per region
-        region_emissions = valid_data.groupby(region_column)['Emissions_per_MWh'].mean().reset_index()
+        region_emissions = self.valid_data.groupby(region_column)['Emissions_per_MWh'].mean().reset_index()
 
         # Clean up the emission name for plotting
         emission_label = emission_choice
@@ -608,4 +611,103 @@ class ModelOutput:
         plt.tight_layout()
         plt.show()
 
+    def plot_emissions_sector(self, y_limit=None):
+        """Plots emissions per MWh for selected regions and criteria with a stacked bar chart by PlantType."""
+
+        # Step 1: Ask for total or hourly emissions
+        emission_type_choice = input("Do you want to plot 'Total' or 'Hourly' emissions? (Enter 'Total' or 'Hourly'): ").strip().lower()
+
+        if emission_type_choice == 'total':
+            emission_suffix = '_total'
+            generation_column = 'Total_generation_Sum'
+        elif emission_type_choice == 'hourly':
+            emission_suffix = '_hourly'
+            generation_column = 'Average_generation_p_hour'
+        else:
+            print("Invalid choice. Please enter 'Total' or 'Hourly'.")
+            return
+
+        # Step 2: Ask for emission criteria
+        emission_options = {
+            'CO2': f'PLCO2RTA',
+            'NOx': f'PLNOXRTA',
+            'SO2': f'PLSO2RTA',
+            'PM': f'PLPMTRO',
+            'CH4': f'PLCH4RTA',
+            'N2O': f'PLN2ORTA'
+        }
+
+        emission_choice = input("Enter the emission criteria you'd like to plot\n CO2\n NOx\n SO2\n PM\n CH4\n N2O\n ").strip()
+
+        if emission_choice not in emission_options:
+            print("Invalid emission criteria. Please enter a valid option\n CO2\n NOx\n SO2\n PM\n CH4\n N2O\n")
+            return
+
+        emission_criteria = emission_options[emission_choice]
+
+        # Step 3: Ask for region type (NERC or IPM)
+        region_type_choice = input("Do you want to use 'NERC' or 'IPM' regions? (Enter 'NERC' or 'IPM'): ").strip().upper()
+
+        if region_type_choice == 'NERC':
+            region_column = 'NERC'
+        elif region_type_choice == 'IPM':
+            region_column = 'RegionName'
+        else:
+            print("Invalid region choice. Please enter 'NERC' or 'IPM'.")
+            return
+
+        # Step 4: Group data by the chosen region and calculate mean emissions per MWh
+        self.valid_data1 = self.df_pivot3[self.df_pivot3[generation_column] > 0]
+
+        self.valid_data1['Total_Emissions'] = self.valid_data1[emission_criteria] * self.valid_data1[generation_column]
+
+        # Convert emissions from lbs to tonnes
+        self.valid_data1['Total_Emissions'] = self.valid_data1['Total_Emissions'] * 0.000453592 * 1e-06
+        self.valid_data1 = self.valid_data1[self.valid_data1["Total_Emissions"] > 0]
+        region_emissions = self.valid_data1.groupby([region_column, "FuelType"])[['Total_Emissions']].sum().reset_index()
+
+        # Pivot data for stacked bar plot
+        region_emissions_pivot = region_emissions.pivot(index=region_column, columns="FuelType", values='Total_Emissions').fillna(0)
+
+        # Define specific colors for the FuelTypes
+        fueltype_colors = {
+            'Coal': 'darkgray',
+            'Solar': 'gold',
+            'Wind': 'blue',
+            'Biomass': 'green',
+            'Tires': 'gray',
+            'Oil': 'black',
+            'Natural Gas': 'orange'
+        }
+
+        # Generate random colors for other fuel types
+        other_fueltypes = [ft for ft in region_emissions_pivot.columns if ft not in fueltype_colors]
+        random_colors = sns.color_palette("husl", len(other_fueltypes))
+        fueltype_colors.update({ft: random_colors[i] for i, ft in enumerate(other_fueltypes)})
+
+        # Clean up the emission name for plotting
+        emission_label = emission_choice
+
+        # Step 5: Plotting
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        # Create stacked bar chart
+        region_emissions_pivot.plot(kind='bar', stacked=True, ax=ax, color=[fueltype_colors[ft] for ft in region_emissions_pivot.columns])
+
+        ax.set_xlabel(f'{region_type_choice} Regions', fontsize=18)
+        ax.set_ylabel(f'{emission_label} Emissions (Million tonnes)', fontsize=18)
+        ax.set_title(f'{emission_label} Emissions by {region_type_choice} Region and Plant Type (in Million tonnes)', fontsize=20)
+
+        # Set a constant Y-axis limit if provided
+        if y_limit is not None:
+            ax.set_ylim(0, y_limit)
+
+        # Add Y-axis grid
+        ax.grid(True, axis='y')
+
+        # Rotate region labels for better readability
+        plt.xticks(rotation=45, ha='right', fontsize=10)
+
+        plt.tight_layout()
+        plt.show()
 
