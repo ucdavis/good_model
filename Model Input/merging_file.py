@@ -281,8 +281,6 @@ def assign_em_rates(input_df, input_df_old):
 
     # Adjust emissions for outliers based on conditions
     for r in range(input_df.shape[0]):
-        if input_df.at[r, 'FuelType'] != 'Oil' and input_df.at[r, 'PLCO2RTA'] > 10000:
-            input_df.loc[r, ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']] = input_df.loc[r, ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']] / 1000
 
         if input_df.at[r, 'FuelType'] != 'Oil' and input_df.at[r, 'PLCO2RTA'] > 5000:
             if input_df.at[r, 'PLNGENAN'] > 1000:
@@ -292,6 +290,8 @@ def assign_em_rates(input_df, input_df_old):
                     input_df.loc[r, ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']] = old_values[
                         ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']].values[0]
 
+        if input_df.at[r, 'FuelType'] != 'Oil' and input_df.at[r, 'PLCO2RTA'] > 250000:
+            input_df.loc[r, ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']] = input_df.loc[r, ['PLCO2RTA', 'PLSO2RTA', 'PLCH4RTA', 'PLN2ORTA', 'PLNOXRTA']] / 1000
     return input_df
 
 

@@ -10,8 +10,6 @@ import seaborn as sns
 
 class ModelOutput:
     def __init__(self):
-
-
         self.valid_data1 = None
         self.valid_data = None
         self.pickle_file_path1 = '/Users/haniftayarani/good_model/toy_src/results.pickle'

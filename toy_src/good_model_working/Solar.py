@@ -1,5 +1,4 @@
 import pyomo.environ as pyomo
-# from .constants import time_periods
 from .user_inputs import time_periods, solar_capital_cost
 from collections import defaultdict
 

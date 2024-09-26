@@ -50,6 +50,7 @@ def get_model_statistcs(model):
     df = pd.DataFrame(statistics, index=[0])
     print(df.to_string(index=False))
 
+
 def get_total_generator_count(model): 
 
     gen_count = 0 
@@ -60,6 +61,7 @@ def get_total_generator_count(model):
             gen_count += len(component)
 
     print(f'Total generators: {gen_count/hours}')
+
 
 def write_model(model, **kwargs): 
    
