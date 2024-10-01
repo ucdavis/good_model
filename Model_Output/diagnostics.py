@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
 # %%
+
+
 class GenerationMixAnalyzer:
     def __init__(self):
-        self.pickle_file_path = '/Users/haniftayarani/good_model/toy_src/results.pickle'
+        self.pickle_file_path = '/Users/haniftayarani/good_model/Model_Main/results.pickle'
         self.annual_mix_baseline = {
             "Coal": 0.219,
             "Oil": 0.006,

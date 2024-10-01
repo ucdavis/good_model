@@ -12,11 +12,11 @@ class ModelOutput:
     def __init__(self):
         self.valid_data1 = None
         self.valid_data = None
-        self.pickle_file_path1 = '/Users/haniftayarani/good_model/toy_src/results.pickle'
-        self.pickle_file_path2 = '/Users/haniftayarani/good_model/Model Input/Plants_group.pickle'
-        self.pickle_file_path3 = '/Users/haniftayarani/good_model/Model Input/Plants_ungroup_extended.pickle'
-        self.shapefile = '/Users/haniftayarani/good_model/Model Input/cb_2018_us_county_5m'
-        self.shapefile_state = '/Users/haniftayarani/good_model/Model Input/cb_2018_us_state_5m'
+        self.pickle_file_path1 = '/Users/haniftayarani/good_model/Model_Output/results.pickle'
+        self.pickle_file_path2 = '/Users/haniftayarani/good_model/Model_Input/Plants_group.pickle'
+        self.pickle_file_path3 = '/Users/haniftayarani/good_model/Model_Input/Plants_ungroup_extended.pickle'
+        self.shapefile = '/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/cb_2018_us_county_5m'
+        self.shapefile_state = '/Users/haniftayarani/Library/CloudStorage/Box-Box/GOOD Model/cb_2018_us_state_5m'
 
         self.state_fips_to_name = {
             '01': 'Alabama',
