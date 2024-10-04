@@ -153,27 +153,32 @@ class Wind:
 
     def objective(self, model):
         # Simplify the construction of the objective function
-        wind_cost_term = 0 
+        wind_cost_term = 0
 
-        if hasattr(model, self.region_id + '_windTransCost') and hasattr(model, self.region_id + '_windCost'): 
+        if hasattr(model, self.region_id + '_windTransCost') and hasattr(model, self.region_id + '_windCost'):
 
             wind_indices = [(w, c) for w in model.wrc for c in model.cc if (w, c) in getattr(model, self.region_id + '_windCost')]
             wind_cost_term = pyomo.quicksum(
-                (((getattr(model, self.region_id + '_windCost')[w, c] * 1000 + wind_capital_cost) + (getattr(model, self.region_id + '_windTransCost')[w, c]))
-                * getattr(model, self.region_id + '_windNew')[w, c])
+                (
+                        (((getattr(model, self.region_id + '_windCost')[w, c] * 1000) + wind_capital_cost + getattr(model, self.region_id + '_windTransCost')[w, c])
+                        * getattr(model, self.region_id + '_windNew')[w, c])
+
+                )
                 for (w, c) in wind_indices
-                ) 
+            )
 
         elif hasattr(model, self.region_id + '_windCost'):
-            
+
             wind_indices = [(w, c) for w in model.wrc for c in model.cc if (w, c) in getattr(model, self.region_id + '_windCost')]
             wind_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_windCost')[w, c]) * (getattr(model, self.region_id + '_windNew')[w, c]) * 1000 + wind_capital_cost
+                (
+                    ((getattr(model, self.region_id + '_windCost')[w, c] + wind_capital_cost) * getattr(model, self.region_id + '_windNew')[w, c] * 1000)
+
+                )
                 for (w, c) in wind_indices
-                ) 
+            )
 
-        else:  
-
+        else:
             wind_cost_term = 0
 
         return wind_cost_term

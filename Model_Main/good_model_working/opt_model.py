@@ -3,6 +3,7 @@ from .user_inputs import time_periods
 from .RegionNode import RegionNode
 from .Transmission import Transmission
 from pyomo.common.timing import TicTocTimer
+from .constants import hydro_capacity_limit
 import highspy
 import time
 
@@ -19,8 +20,8 @@ class Opt_Model:
                 total_demand = sum(c_load[t] for t in self.model.t)  # Sum the demand across all time periods
                 total_demand_all_regions += total_demand  # Add the region's total demand to the overall total
                 print(f"Region: {r}, Total Demand: {total_demand}")
-            else:
-                print(f"Region: {r} has no demand data.")
+            # else:
+                # print(f"Region: {r} has no demand data.")
 
         # Print the total demand for all regions
         print(f"Total demand for all regions: {total_demand_all_regions}")
@@ -32,7 +33,7 @@ class Opt_Model:
         self.solver_name = solver_name
         self.sets = model_data.get('sets', {})
         self.graph = model_data.get('graph', {})
-        self.rfs_policy = model_data.get('rps_policy', {})
+        self.rps_policy = model_data.get('rps_policy', {})
         self.region_list = self.sets.get('region', [])
         # self.time_periods = model_data.get('time_periods', {})
         self.time_periods = time_periods
@@ -171,9 +172,9 @@ class Opt_Model:
         self.region_policy_constraint()
         self.timer.toc("Policy constraint built")
 
-        self.timer.toc("Starting oil constraint...")
-        self.oil_constraint()
-        self.timer.toc("Oil constraint built")
+        # self.timer.toc("Starting oil constraint...")
+        # self.oil_constraint()
+        # self.timer.toc("Oil constraint built")
 
         if self.test_cons:
             self.constraint_deactivation()
@@ -321,12 +322,12 @@ class Opt_Model:
 
             # Loop through all generators in the region
             for gen_type in valid_gen_types:
-                gen_max = getattr(self.model, r + '_genMax')[gen_type]  # Access directly like a dictionary
-                if "Hydro" in gen_type and gen_max > 40:
+                gen_max = (getattr(self.model, r + '_genMax')[gen_type])
+                if "Hydro" in gen_type and gen_max < 40:
                     # If it's a hydro generator with capacity > 40 MW, include it in the hydro terms
                     for t in self.model.t:
                         hydro_terms = pyomo.quicksum(
-                            x_generation_var[gen_type, t]
+                            x_generation_var[gen_type, t] * hydro_capacity_limit
                             for t in self.model.t
                         )
                         total_hydro_above_threshold += hydro_terms
@@ -361,41 +362,41 @@ class Opt_Model:
 
             # Add policy constraint to ensure wind + solar is at least X% of generation
             self.model.rfs_balancing_rule.add(
-                total_wind_solar >= self.rfs_policy * (total_generation - total_wind_solar - total_hydro_above_threshold)
+                total_wind_solar >= self.rps_policy * (total_generation + total_wind_solar - total_hydro_above_threshold)
             )
 
-    def oil_constraint(self):
-        self.model.oil_balancing_rule = pyomo.ConstraintList()
-
-        for r in self.model.r:
-            x_generation_var = getattr(self.model, r + '_generation', None)
-            valid_gen_types = None
-            if x_generation_var is not None:
-                valid_gen_types = set([g for g, _ in x_generation_var])
-
-            total_generation = 0
-            total_oil = 0
-
-            # Loop through all generators in the region
-            for gen_type in valid_gen_types:
-
-                if "Oil" in gen_type:
-                    for t in self.model.t:
-                        oil_terms = x_generation_var[gen_type, t]
-                        total_oil += oil_terms
-
-                generation_terms = 0
-                if valid_gen_types is not None:
-                    generation_terms = pyomo.quicksum(
-                        x_generation_var[g, t] for g in valid_gen_types for t in self.model.t
-                    )
-
-                total_generation += generation_terms
-
-            # Add policy constraint to ensure oil is at least 1% of total generation
-            self.model.oil_balancing_rule.add(
-                total_oil <= 0.0001 * total_generation
-            )
+    # def oil_constraint(self):
+    #     self.model.oil_balancing_rule = pyomo.ConstraintList()
+    #
+    #     for r in self.model.r:
+    #         x_generation_var = getattr(self.model, r + '_generation', None)
+    #         valid_gen_types = None
+    #         if x_generation_var is not None:
+    #             valid_gen_types = set([g for g, _ in x_generation_var])
+    #
+    #         total_generation = 0
+    #         total_oil = 0
+    #
+    #         # Loop through all generators in the region
+    #         for gen_type in valid_gen_types:
+    #
+    #             if "Oil" in gen_type:
+    #                 for t in self.model.t:
+    #                     oil_terms = x_generation_var[gen_type, t]
+    #                     total_oil += oil_terms
+    #
+    #             generation_terms = 0
+    #             if valid_gen_types is not None:
+    #                 generation_terms = pyomo.quicksum(
+    #                     x_generation_var[g, t] for g in valid_gen_types for t in self.model.t
+    #                 )
+    #
+    #             total_generation += generation_terms
+    #
+    #         # Add policy constraint to ensure oil is at least 1% of total generation
+    #         self.model.oil_balancing_rule.add(
+    #             total_oil <= 0.0001 * total_generation
+    #         )
 
     def constraint_deactivation(self):
 

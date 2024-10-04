@@ -5,7 +5,7 @@ from reading_file import load_data
 from merging_file import (merging_data, assign_fuel_costs, cluster_plants, assign_em_rates, long_wide, transmission_func,
                           ffill_ren_cost, ffill_ren_cap, cluster_and_aggregate, long_wide_load, storage_object, solar_object,
                           wind_object, gen_object, load_object, trans_object, plant_capacity, trans_index, renewable_transmission_cost,adjust_coal_generation_cost,
-                          convert_keys_to_string, merge_dictionaries_and_format, adjust_nuclear_generation_cost, concat_filtered_plants)
+                          convert_keys_to_string, merge_dictionaries_and_format, adjust_nuclear_generation_cost, concat_filtered_plants, adjust_oil_generation_cost)
 import json
 import numpy as np
 import pickle
@@ -20,9 +20,10 @@ Plant_short = merging_data(Plant, Parsed)
 # Assigning fuel cost
 Plant_short_fixed_fuelC = assign_fuel_costs(Plant_short)
 Plant_short_fixed_fuelC_coal = adjust_coal_generation_cost(Plant_short_fixed_fuelC)
-Plant_short_fixed_fuelC_coal_Nuc = adjust_nuclear_generation_cost(Plant_short_fixed_fuelC)
+Plant_short_fixed_fuelC_coal_oil = adjust_oil_generation_cost(Plant_short_fixed_fuelC_coal)
+Plant_short_fixed_fuelC_coal_oil_Nuc = adjust_nuclear_generation_cost(Plant_short_fixed_fuelC_coal_oil)
 # Replacing missing fuel cost
-Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC_coal_Nuc, Plant_old)
+Plant_short_fixed_Em = assign_em_rates(Plant_short_fixed_fuelC_coal_oil_Nuc, Plant_old)
 # Aggregation of power plants
 Plants_community, all_regions_clusters = cluster_plants(Plant_short_fixed_Em, 2000, 2000, 10, 4, 1, 1, 1)
 # Aggregating the power plants

@@ -193,10 +193,10 @@ class GenerationMixAnalyzer:
 
         data = []
         for general_key, specific_keys in grouped_data.items():
-            if general_key != "Solar":  # Avoid summing "Solar_Current" and "Solar_New"
+            if general_key not in ["Solar", "Wind"]:  # Avoid summing "Solar_Current", "Solar_New", "Wind_Current", and "Wind_New"
                 total_value = sum(annual_mix[key] for key in specific_keys)
             else:
-                total_value = sum(annual_mix[key] for key in specific_keys if key == "Solar_Current")  # Handle Solar separately
+                total_value = sum(annual_mix[key] for key in specific_keys if key == f"{general_key}_Current")  # Handle Solar and Wind separately
             data.append({"Resource": general_key, "Capacity": total_value})
 
         annual_df = pd.DataFrame(data)
@@ -219,7 +219,7 @@ class GenerationMixAnalyzer:
         baseline_df["Value"] = baseline_df["Value"] * self.annual_total_mwh_baseline
         # Merge and format the output
         compared_df = pd.merge(baseline_df, annual_df, on='Resource', how='outer')
-        compared_df = compared_df[['Resource', 'Percentage_Baseline', 'Percentage_Model']]
+        compared_df = compared_df[['Resource', 'Percentage_Baseline','Percentage_Model']]
 
         print(compared_df.to_string())
 
@@ -254,11 +254,12 @@ class GenerationMixAnalyzer:
             ax.bar(regions, values, label=fuel, bottom=bottom, color=color_map[fuel])
             bottom += np.array(values)
 
-        ax.set_xlabel('Regions')
-        ax.set_ylabel('Capacity' if not percentage else 'Percentage')
-        ax.set_title('Annual Generation Mix by Region' + (' (Percentage)' if percentage else ''))
-        ax.legend(title='Fuel Types', loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=3)
-        plt.xticks(rotation=45, ha='right')
+        ax.set_xlabel('Regions', fontsize=16)
+        ax.set_ylabel('Capacity (MWh)' if not percentage else 'Percentage (%)', fontsize=16)
+        ax.set_title('Annual Generation Mix by Region' + (' (Percentage)' if percentage else ''), fontsize=16)
+        ax.legend(title='Plant & Fuel Types', loc='upper center', bbox_to_anchor=(0.5, -0.4), ncol=6, fontsize=14, title_fontsize=16)
+        plt.xticks(rotation=45, ha='right', fontsize=14)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
         plt.show()
 

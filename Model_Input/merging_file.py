@@ -49,8 +49,9 @@ def map_fuel_type(row_input):
 
 # Create a function to assign fuel costs
 def assign_fuel_costs(input_df):
-    selected_columns = ["UniqueID", "ORISPL", "PLNGENAN",  "RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom", "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal",
-                        "UTLSRVNM", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA", "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
+    selected_columns = ["UniqueID", "ORISPL", "PLNGENAN",  "RegionName", "StateName", "CountyName", "NERC",  "PlantType", "FuelType", "FossilUnit", "Capacity", "Firing", "Bottom",
+                        "EMFControls", "FOMCost" , "FuelUseTotal", "FuelCostTotal", "VOMCostTotal", "UTLSRVNM", "SUBRGN", "FIPSST", "FIPSCNTY", "LAT", "LON", "PLPRMFL", "PLNOXRTA",
+                        "PLSO2RTA", "PLCO2RTA", "PLCH4RTA", "PLN2ORTA", "HeatRate"]
 
     merged_short = input_df[selected_columns].copy()
     merged_short["FuelCost[$/MWh]"] = ((merged_short["FuelCostTotal"] / (merged_short["FuelUseTotal"] + 1)) * merged_short["HeatRate"]) / 1000
@@ -172,6 +173,26 @@ def adjust_coal_generation_cost(df):
 
     # Replace the original Fuel_VOM_Cost with the adjusted values
     df.loc[df['FuelType'] == 'Coal', 'Fuel_VOM_Cost'] = coal_data['adjusted_cost']
+
+    return df
+
+
+def adjust_oil_generation_cost(df):
+    # Filter only the rows with FuelType 'Oil'
+    oil_data = df[df['FuelType'] == 'Oil'].copy()
+
+    # Define the target mean
+    target_mean = 32
+
+    # Calculate the current mean
+    current_mean = oil_data['Fuel_VOM_Cost'].mean()
+
+    # Adjust the costs to have the target mean
+    adjustment_factor = target_mean / current_mean
+    oil_data['adjusted_cost'] = oil_data['Fuel_VOM_Cost'] * adjustment_factor
+
+    # Replace the original Fuel_VOM_Cost with the adjusted values
+    df.loc[df['FuelType'] == 'Oil', 'Fuel_VOM_Cost'] = oil_data['adjusted_cost']
 
     return df
 

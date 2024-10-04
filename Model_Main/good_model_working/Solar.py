@@ -159,21 +159,27 @@ class Solar:
 
             solar_indices = [(s, c) for s in model.src for c in model.cc if (s, c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (((getattr(model, self.region_id + '_solarCost')[s, c] * 1000 + solar_capital_cost) + (getattr(model, self.region_id + '_solarTransCost')[s, c]))
-                * getattr(model, self.region_id + '_solarNew')[s, c])
-                for (s, c) in solar_indices
+                (
+                        (((getattr(model, self.region_id + '_solarCost')[s, c] * 1000) + solar_capital_cost + getattr(model, self.region_id + '_solarTransCost')[s, c])
+                        * getattr(model, self.region_id + '_solarNew')[s, c])
+
+
                 )
-        
-        elif hasattr(model, self.region_id + '_solarCost'): 
-            
+                for (s, c) in solar_indices
+            )
+
+        elif hasattr(model, self.region_id + '_solarCost'):
+
             solar_indices = [(s, c) for s in model.src for c in model.cc if (s, c) in getattr(model, self.region_id + '_solarCost')]
             solar_cost_term = pyomo.quicksum(
-                (getattr(model, self.region_id + '_solarCost')[s, c]) * (getattr(model, self.region_id + '_solarNew')[s, c]) * 1000 + solar_capital_cost
-                for (s, c) in solar_indices
-                )
-        
-        else: 
+                (
+                    ((getattr(model, self.region_id + '_solarCost')[s, c] + solar_capital_cost) * getattr(model, self.region_id + '_solarNew')[s, c] * 1000)
 
+                )
+                for (s, c) in solar_indices
+            )
+
+        else:
             solar_cost_term = 0
 
         return solar_cost_term
