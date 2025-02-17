@@ -2,6 +2,8 @@
 
 A Python-based power grid optimization framework for modeling energy systems with renewable integration and policy constraints.
 
+# NOTE THAT THIS IS OUT OF DATE AND NEEDS UPDATING - SEE Example.ipynb
+
 ## Table of Contents
 - [Status & Roadmap](#status--roadmap)
 - [Prerequisites](#prerequisites)
