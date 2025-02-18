@@ -1,6 +1,7 @@
 import pytest
-from src.optimization import Network
+from good.optimization import Network
 import networkx as nx
+from good.graph import graph_from_json
 
 def graph_from_dict(graph_dict):
     """Creates a NetworkX graph from a dictionary representation"""
@@ -24,7 +25,9 @@ class TestFeasibility:
     
     def test_empty_network(self, empty_graph):
         """Test that empty network has zero generation and cost"""
-        network = Network().set_graph(graph_from_dict(empty_graph))
+        network = Network().from_graph(graph_from_dict(empty_graph))
+        network.build()
+        network.solve()
         result = network.optimize()
         assert result.objective_value == 0
         assert sum(gen.production for gen in result.generators.values()) == 0
@@ -52,28 +55,31 @@ class TestFeasibility:
     def test_expensive_generator_last_resort(self, single_node_graph):
         """Test that expensive generator is only used when necessary"""
         # Add a cheap and expensive generator
-        single_node_graph["nodes"]["region1"]["generators"] = [
+        region = next(node for node in single_node_graph["nodes"] if node["id"] == "region1")
+        region["assets"] = [
             {
-                "id": "cheap_gen",
-                "type": "conventional",
-                "capacity": 40,
+                "type": "Producer",
+                "_class": "Producer",
+                "handle": "cheap_gen",
+                "installed_capacity": 40,
                 "operating_cost": 10
             },
             {
-                "id": "expensive_gen",
-                "type": "conventional",
-                "capacity": 100,
+                "type": "Producer",
+                "_class": "Producer",
+                "handle": "expensive_gen",
+                "installed_capacity": 100,
                 "operating_cost": 1000
             }
         ]
-        single_node_graph["nodes"]["region1"]["loads"][0]["demand"] = 30
         
-        network = Network().set_graph(graph_from_dict(single_node_graph))
-        result = network.optimize()
+        network = Network().from_graph(graph_from_dict(single_node_graph))
+        network.build()
+        network.solve()
         
         # Verify cheap generator is used first
-        assert result.generators["cheap_gen"].production == 30
-        assert result.generators["expensive_gen"].production == 0
+        assert network.results["cheap_gen::production"].sum() == 30
+        assert network.results["expensive_gen::production"].sum() == 0
 
         # Now increase load beyond cheap generator capacity
         single_node_graph["nodes"]["region1"]["loads"][0]["demand"] = 50

@@ -183,50 +183,41 @@ class Network:
                 self.model = edge['object'].parameters(self.model)
 
     def from_graph(self, graph):
-
         graph = deepcopy(graph)
-
         graph = remove_self_edges(graph)
 
         for source, node in graph._node.items():
-
             _class = node.pop('_class')
             profiles = node.pop('profiles', {})
-
             assets = node.pop('assets', [])
             policies = node.pop('policies', [])
 
             self.add(_class, source, **node)
 
             for asset in assets:
-
                 _class = asset.pop('_class')
-
                 asset['region'] = source
 
                 if isinstance(asset.get('profile', ''), str):
-
                     asset['profile'] = profiles.get(asset['profile'], None)
 
-                self.add(_class, asset['id'], **asset)
+                # Use handle instead of id
+                self.add(_class, asset['handle'], **asset)
 
             for policy in policies:
-
                 _class = policy.pop('_class')
-
                 policy['jurisdiction'] = source
-
-                self.add(_class, policy['id'], **policy)
+                # Use handle instead of id for policies too
+                self.add(_class, policy['handle'], **policy)
 
         for source, _adj in graph._adj.items():
             for target, edge in _adj.items():
-
                 _class = edge.pop('_class')
-
                 edge['source'] = source
                 edge['target'] = target
-
-                self.add(_class, f"{source}_{target}", **edge)
+                # Use handle for edges
+                handle = edge.get('handle', f"{source}_{target}")
+                self.add(_class, handle, **edge)
 
         return self
 
