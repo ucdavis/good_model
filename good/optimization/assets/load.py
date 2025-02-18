@@ -1,5 +1,6 @@
 from ..base.asset import Asset
 import pyomo.environ as pyomo
+import numpy as np
 
 class Load(Asset):
 
@@ -171,4 +172,30 @@ class Load(Asset):
             )
 
         return cost
+
+    def results(self, model, results):
+        """Collect load results including any shifting"""
+        handle = self.handle
+        
+        # Get the profile parameter
+        profile = getattr(model, f"{handle}::profile")
+        results[f'{handle}::profile'] = [profile[t] for t in model.steps]
+        
+        # Get the shift variable if it exists
+        shift = getattr(model, f"{handle}::shift")
+        
+        # Calculate total shifted profile
+        shifted = []
+        for t in model.steps:
+            base = profile[t] * self.installed_capacity
+            shift_amount = pyomo.value(shift[t]) if self.shiftable else 0
+            shifted.append(base + shift_amount)
+        
+        results[f'{handle}::shifted'] = shifted
+        
+        # Convert to numpy arrays
+        results[f'{handle}::profile'] = np.array(results[f'{handle}::profile'])
+        results[f'{handle}::shifted'] = np.array(results[f'{handle}::shifted'])
+        
+        return results
 

@@ -1,7 +1,18 @@
 import time
+import numpy as np
 
 import networkx as nx
-import pyomo.environ as pyomo
+import pyomo.environ as pyo
+from pyomo.opt import SolverFactory
+from pyomo.environ import (
+    ConcreteModel,
+    Var,
+    Objective,
+    Constraint,
+    NonNegativeReals,
+    Binary,
+    minimize,
+)
 
 from copy import deepcopy
 
@@ -35,57 +46,78 @@ class Network:
         self.wastage_cost = kwargs.get('wastage_cost', None)
 
         self.graph = nx.DiGraph()
+        self.results = {}  # Initialize empty results dict
 
     def collect_results(self):
-
         self.results = {}
 
         for source, node in self.graph._node.items():
-
             self.results = node['object'].results(self.model, self.results)
 
             for target, edge in self.graph._adj[source].items():
-
                 self.results = edge['object'].results(self.model, self.results)
 
-    def solve(self, **kwargs):
+        # Convert lists to numpy arrays
+        for k, v in self.results.items():
+            if isinstance(v, list):
+                self.results[k] = np.array(v)
 
+    def solve(self, **kwargs):
+        """Solve the optimization problem"""
         self.verbose = kwargs.get('verbose', self.verbose)
         tee = kwargs.get('tee', False)
-        solver_kw = kwargs.get('solver', {'_name': 'glpk'})
+        solver_kw = kwargs.get('solver', {'_name': 'appsi_highs'})
 
-        #Generating the solver object
-        solver = pyomo.SolverFactory(**solver_kw)
-
-        # Building and solving as a linear problem
+        # Create solver
+        solver = SolverFactory(**solver_kw)
+        
+        # Solve model
         t0 = time.time()
-        self.result = solver.solve(self.model, tee = tee)
+        self.result = solver.solve(self.model, tee=tee, load_solutions=False)
         cprint(f'Problem Solved: {time.time() - t0}', self.verbose)
 
-        # Making solution dictionary
+        # Check solver status
+        if hasattr(self.result, 'solver'):
+            status = str(self.result.solver.termination_condition)
+            if status in ['infeasible', 'infeasibleOrUnbounded']:
+                raise Exception("Problem is infeasible")
+            elif status != 'optimal':
+                if status == 'unknown' and self.result.solver.status == 'ok':
+                    # Some solvers return unknown even when solution is valid
+                    pass
+                else:
+                    raise Exception(f"Solver terminated with status: {status}")
+
+        # Load solution if we got here
+        self.model.solutions.load_from(self.result)
+        
+        # Collect results
         t0 = time.time()
         self.collect_results()
         cprint(f'Results Collected: {time.time() - t0}', self.verbose)
+        
+        return self
 
     def build(self):
-
-        self.model = pyomo.ConcreteModel()
+        """Build the optimization model"""
+        self.model = ConcreteModel()
 
         # Define time steps
-        self.model.steps = pyomo.Set(initialize = list(range(self.steps)))
-        self.model.time_step = pyomo.Param(initialize = self.time_step)
+        self.model.steps = range(self.steps)
+        self.model.time_step = self.time_step
 
-        # t0 = time.time()
+        # Build model components
+        t0 = time.time()
         self.feasibility_parameters()
         self.assign_edge_objects()
-        # cprint(f'Parameters Built: {time.time() - t0}', self.verbose)
+        cprint(f'Parameters Built: {time.time() - t0}', self.verbose)
 
         t0 = time.time()
         self.build_parameters()
         cprint(f'Parameters Built: {time.time() - t0}', self.verbose)
 
         t0 = time.time()
-        self.build_variables()
+        self.build_variables() 
         cprint(f'Variables Built: {time.time() - t0}', self.verbose)
 
         t0 = time.time()
@@ -137,20 +169,18 @@ class Network:
                 target_node['object'].exports.append(edge)
 
     def build_objective(self):
-
         cost = 0
 
         for source, node in self.graph._node.items():
-
             cost += node['object'].objective(self.model)
 
             for target, edge in self.graph._adj[source].items():
-
                 cost += edge['object'].objective(self.model)
 
-        self.model.objective = pyomo.Objective(
-            expr = cost, sense = pyomo.minimize
-            )
+        self.model.objective = Objective(
+            expr=cost, 
+            sense=minimize
+        )
 
     def build_constraints(self):
 
@@ -196,27 +226,28 @@ class Network:
 
             for asset in assets:
                 _class = asset.pop('_class')
+                handle = asset.pop('handle')
                 asset['region'] = source
 
-                if isinstance(asset.get('profile', ''), str):
-                    asset['profile'] = profiles.get(asset['profile'], None)
+                # Only try to resolve profile if it's a string reference
+                profile = asset.get('profile')
+                if isinstance(profile, str):
+                    asset['profile'] = profiles.get(profile)
 
-                # Use handle instead of id
-                self.add(_class, asset['handle'], **asset)
+                self.add(_class, handle, **asset)
 
             for policy in policies:
                 _class = policy.pop('_class')
+                handle = policy.pop('handle')
                 policy['jurisdiction'] = source
-                # Use handle instead of id for policies too
-                self.add(_class, policy['handle'], **policy)
+                self.add(_class, handle, **policy)
 
         for source, _adj in graph._adj.items():
             for target, edge in _adj.items():
                 _class = edge.pop('_class')
+                handle = edge.pop('handle', f"{source}_{target}")
                 edge['source'] = source
                 edge['target'] = target
-                # Use handle for edges
-                handle = edge.get('handle', f"{source}_{target}")
                 self.add(_class, handle, **edge)
 
         return self

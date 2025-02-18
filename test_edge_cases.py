@@ -1,6 +1,7 @@
 import pytest
 from good.optimization import Network
 import networkx as nx
+import numpy as np
 
 
 def graph_from_dict(graph_dict):
@@ -8,15 +9,16 @@ def graph_from_dict(graph_dict):
     graph = nx.DiGraph()
     
     # Add nodes
-    for node_id, node_data in graph_dict["nodes"].items():
-        graph.add_node(node_id, **node_data)
+    for node in graph_dict["nodes"]:
+        node_id = node["id"]
+        graph.add_node(node_id, **node)
     
     # Add edges
-    for edge_id, edge_data in graph_dict["edges"].items():
-        source = edge_data.pop("from", None)
-        target = edge_data.pop("to", None)
+    for edge in graph_dict["edges"]:
+        source = edge.get("source") or edge.get("from")
+        target = edge.get("target") or edge.get("to")
         if source and target:
-            graph.add_edge(source, target, **edge_data)
+            graph.add_edge(source, target, **edge)
     
     return graph
 
@@ -45,8 +47,10 @@ class TestTransmission:
         
         network = Network().from_graph(graph_from_dict(two_node_graph))
         network.build()
-        with pytest.raises(Exception):  # Should be infeasible
-            network.solve()
+        
+        # Should be infeasible
+        with pytest.raises(Exception):
+            network.solve(solver={'_name': 'appsi_highs'})
 
         # Now make it feasible with local generation
         region2 = next(node for node in two_node_graph["nodes"] if node["id"] == "region2")
@@ -59,8 +63,10 @@ class TestTransmission:
             "profile": [1.0] * 24
         })
         
-        network = Network().set_graph(graph_from_dict(two_node_graph))
-        result = network.optimize()
+        network = Network().from_graph(graph_from_dict(two_node_graph))
+        network.build()
+        network.solve()
         
         # Verify transmission limit is respected
-        assert result.lines["line1"].flow <= 50 
+        flows = np.array(network.results['line1::transmission'])
+        assert np.all(flows <= 50 * 1.001)  # Allow for solver tolerance 
