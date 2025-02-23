@@ -36,29 +36,14 @@ class RPS(Policy):
         inclusion_criteria = kwargs.get('inclusion_criteria', [])
         exclusion_criteria = kwargs.get('exclusion_criteria', [])
 
-        self.active = True
+        self.inclusion_criteria = self.interpret(inclusion_criteria)
+        self.exclusion_criteria = self.interpret(exclusion_criteria)
 
-        if len(inclusion_criteria) == 0 and len(exclusion_criteria) == 0:
+        self.assets = kwargs.get('assets', [])
+        self.included = self.build_set(self.assets, self.inclusion_criteria)
+        self.excluded = self.build_set(self.assets, self.exclusion_criteria)
 
-            self.active = False
-
-        self.inclusion_criteria = []
-
-        for fun in inclusion_criteria:
-            if isinstance(fun, str):
-
-                fun = eval(fun)
-            
-            self.inclusion_criteria.append(fun)
-
-        self.exclusion_criteria = []
-
-        for fun in exclusion_criteria:
-            if isinstance(fun, str):
-
-                fun = eval(fun)
-
-            self.exclusion_criteria.append(fun)
+        self.active = len(self.included) > 0
 
         self.generation_portion = kwargs.get('generation_portion', 0)
         self.generation_portion_rule = self.generation_portion > 0
@@ -75,41 +60,40 @@ class RPS(Policy):
         self.penalty = kwargs.get('penalty', np.inf)
         self.strict = np.isinf(self.penalty)
 
-        # Assets
-        self.included = kwargs.get('included', []) # Handles of ssets in the specified set
-        self.excluded = kwargs.get('excluded', [])
+    def build_set(self, assets, criteria):
 
-        # print(self.included)
+        included = []
 
-    def constraints(self, model, assets = []):
+        for asset in assets:
+
+            include = True
+
+            for fun in criteria:
+
+                include *= fun(asset)
+
+            if include:
+
+                included.append(asset)
+
+        return included
+
+    def interpret(self, criteria):
+
+        interpreted_criteria = []
+
+        for fun in criteria:
+            if isinstance(fun, str):
+
+                fun = eval(fun)
+            
+            interpreted_criteria.append(fun)
+
+        return interpreted_criteria
+
+    def constraints(self, model):
 
         if self.strict and self.active:
-
-            for asset in assets:
-
-                include = True
-
-                for fun in self.inclusion_criteria:
-
-                    include *= fun(asset)
-
-                if include:
-
-                    self.included.append(asset)
-
-                exclude = True
-
-                for fun in self.exclusion_criteria:
-
-                    exclude *= fun(asset)
-
-                if exclude:
-
-                    self.excluded.append(asset)
-
-            if len(self.included) == 0 and len(self.exlcuded) == 0:
-
-                return model
 
             if self.generation_portion_rule:
 
@@ -191,39 +175,11 @@ class RPS(Policy):
         
         return model
 
-    def objective(self, model, assets = []):
+    def objective(self, model):
 
         cost = 0.
 
         if not self.strict and self.active:
-            
-            for asset in assets:
-
-                include = True
-
-                for fun in self.inclusion_criteria:
-
-                    include *= fun(asset)
-
-                if include:
-
-                    self.included.append(asset)
-
-                exclude = True
-
-                for fun in self.exclusion_criteria:
-
-                    exclude *= fun(asset)
-
-                if exclude:
-
-                    self.excluded.append(asset)
-
-            if len(self.included) == 0 and len(self.exlcuded) == 0:
-
-                print('s')
-
-                return cost
 
             if self.generation_portion_rule:
 

@@ -179,3 +179,32 @@ class Store(Asset):
         capacity = self.installed_capacity + capex
 
         return capacity
+
+    def results(self, model, results):
+
+        local_results = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            local_results[handle.split('::')[1]] = value
+
+        # Net Contribution
+        production = list(
+            getattr(model, f"{self.handle}::production").extract_values().values()
+            )
+
+        consumption = list(
+            getattr(model, f"{self.handle}::consumption").extract_values().values()
+            )
+
+        efficiency = self.efficiency
+
+        local_results["net"] = (
+            [production[i] * efficiency - consumption[i] / efficiency \
+            for i in model.steps]
+            )
+
+        results[self.handle] = local_results
+
+        return results

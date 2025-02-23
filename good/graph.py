@@ -3,53 +3,6 @@ import json
 import numpy as np
 import networkx as nx
 
-# Building a graph to use as a Network input
-
-def build_graph(assets, lines, profiles, policies, **kwargs):
-
-    nodes = build_nodes(assets, profiles, policies)
-
-    graph = graph_from_nlg({'nodes': nodes, 'links': lines}, directed = True)
-
-    return graph
-
-def build_nodes(assets, profiles, policies):
-
-    # Getting unique regions
-    regions = np.unique([p['region'] for p in assets])
-
-    # Getting unique jurisdictions
-    jurisdictions = np.unique(
-        [p['jurisdiction'] for p in assets if p['jurisdiction'] is not None]
-        )
-
-    nodes = []
-
-    for region in regions:
-
-        node = {'id': region, '_class': 'Region'}
-
-        # Adding assets
-        node['assets'] = [p for p in assets if p['region'] == region]
-
-        # Adding profiles
-        node['profiles'] = (
-            {k: v for k, v in profiles.items() if k.split(':')[0] == region}
-            )
-
-        nodes.append(node)
-
-    for jurisdiction in jurisdictions:
-
-        node = {'id': jurisdiction, '_class': 'Jurisdiction'}
-
-        # Adding policies
-        node['policies'] = [p for p in policies if p['jurisdiction'] == jurisdiction]
-
-        nodes.append(node)
-
-    return nodes
-
 # General utilities
 
 def cypher(graph):

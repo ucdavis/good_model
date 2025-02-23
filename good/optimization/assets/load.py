@@ -1,3 +1,5 @@
+import numpy as np
+
 from ..base.asset import Asset
 import pyomo.environ as pyomo
 
@@ -27,6 +29,10 @@ class Load(Asset):
 
         self.profile = kwargs.get('profile', None)
 
+        if self.profile is not None:
+
+            self.profile = np.array(self.profile)
+
     def parameters(self, model):
 
         if self.profile is None:
@@ -34,13 +40,16 @@ class Load(Asset):
             self.profile = [0] * len(model.steps)
 
         # print(self.handle, self.profile[:25])
+        # model.start.pprint()
 
         handle = f"{self.handle}::profile"
         self.handles.append(handle)
         setattr(
             model, handle,
-            pyomo.Param(model.steps, initialize = self.profile[:len(model.steps)])
-        )
+            pyomo.Param(model.steps,
+                initialize = self.profile[int(model.start):int(model.stop)]
+                )
+            )
 
         # Capacity Expansion
         if not self.extensible:
@@ -172,3 +181,28 @@ class Load(Asset):
 
         return cost
 
+    def results(self, model, results):
+
+        local_results = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            local_results[handle.split('::')[1]] = value
+
+        # Net Contribution
+        profile = list(
+            getattr(model, f"{self.handle}::profile").extract_values().values()
+            )
+        shift = list(getattr(model, f"{self.handle}::shift").extract_values().values())
+        capex = list(getattr(model, f"{self.handle}::capex").extract_values().values())
+
+        capacity = self.installed_capacity + capex[0]
+
+        local_results["net"] = (
+            [(profile[i] + shift[i]) * capacity for i in model.steps]
+            )
+
+        results[self.handle] = local_results
+
+        return results

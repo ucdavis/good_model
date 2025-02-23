@@ -28,6 +28,10 @@ class Producer(Asset):
         self.profile = kwargs.get('profile', None)
         self.capacity_factor = kwargs.get('capacity_factor', 1)
 
+        if self.profile is not None:
+
+            self.profile = np.array(self.profile)
+
     def parameters(self, model):
 
         # Capacity Expansion
@@ -52,11 +56,15 @@ class Producer(Asset):
 
         else:
 
+            print(self.profile)
+
             handle = f"{self.handle}::profile"
             self.handles.append(handle)
             setattr(
                 model, handle,
-                pyomo.Param(model.steps, initialize = self.profile[:len(model.steps)]),
+                pyomo.Param(
+                    model.steps,
+                    initialize = self.profile[int(model.start):int(model.stop)]),
             )
 
         return model
@@ -176,3 +184,23 @@ class Producer(Asset):
         cost = production_cost + expansion_cost
         
         return cost
+
+    def results(self, model, results):
+
+        local_results = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            local_results[handle.split('::')[1]] = value
+
+        # Net Contribution
+        production = list(
+            getattr(model, f"{self.handle}::production").extract_values().values()
+            )
+
+        local_results["net"] = production
+
+        results[self.handle] = local_results
+
+        return results
