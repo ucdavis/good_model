@@ -1,0 +1,106 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{mathptmx}
+\usepackage{float}
+\usepackage[cmex10]{amsmath}
+\usepackage{amsthm,amssymb}
+\usepackage{url}
+\urlstyle{same} 
+\def\UrlBreaks{\do\/\do-}
+\usepackage{breakurl}
+\usepackage{fancybox}
+\usepackage{breqn}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{comment}
+\usepackage[english]{babel}
+\usepackage[acronym,nomain]{glossaries} % list of acronyms
+\usepackage{xurl}
+\usepackage{cite} % math and engineering style citations
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{mathptmx}
+\usepackage{float}
+\usepackage{lipsum}
+\usepackage{framed}
+\usepackage{empheq}
+\usepackage[T1]{fontenc}
+\usepackage[pdfpagelabels,pdfusetitle,colorlinks=false,pdfborder={0 0 0}]{hyperref}
+
+\renewcommand{\arraystretch}{1.2}
+
+\sloppy
+
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1-2\tabcolsep}}
+
+\title{Grid Optimized Operation Dispatch (GOOD) Model Formulation}
+\author{Aaron Rabinowitz, Alan Jenn}
+\date{}
+
+\input{gloss}
+\makeglossaries
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+The \gls{good} model is a high level power grid constrained \gls{od} and \gls{ce}. The purpose of the \gls{good} model is to provide a flexible open-source model for the evaluation of energy technology and policy. ...
+
+\subsection{Structure}
+
+The first fundamental unit of the \gls{good} model is the balancing region. A balancing region contains assets (generators, loads, and storage). Assets may only belong to a single region. Balancing regions are connected to one-another via transmission edges containing of a set of lines. Regional net energy must be zero at each time step (this may be a hard or soft constraint). The second fundamental unit of the \gls{good} model is the policy. Policies apply to groups of assets which may include assets from multiple balancing regions. Multiple policies may apply to a single asset. Assets may belong to multiple policies. The \gls{good} model contains two fundamental components:
+
+\begin{enumerate}
+	\item \textbf{Energy System Graph} The energy system is defined by the directed graph $G = \{R, E\}$ where $R$ is the set of regions and $E$ is the set of transmission connections between regions. Each node $r \in R$ has a set of assets $A_r \subseteq A$ where $A$ is the set of assets in the model. Each edge $(i, j) \in E$ has a set of lines $L_{(i, j)} \subseteq L$ where $L$ is the set of lines in the model.
+	\item \textbf{Policy Set} Policies are contained in the set $P$ where each policy $p \in P$ applies to a set of assets $A_p \subseteq A$.
+\end{enumerate}
+
+The objective of the \gls{good} model is to produce an optimal set of operational (\gls{od}) and strategic (\gls{ce}) variables such that overall cost is minimized subject t constraints. Constraints are at the asset level (maximum output, ramp rate, maximum capacity, etc.), the energy system level (energy balance, transmission limits), and the governance level (renewable profile).
+
+\subsection{Formulation}
+
+\subsubsection{Objective Function}
+
+\begin{gather}
+	\min_{X \in \overline{X}, Z \in \overline{Z}} \ J(X, Z) = J_X(X) + J_Z(Z)\label{eq:min} \\
+	J_X(X) = \sum_{t \in T}\left[\sum_{r \in R} [c^s_rx^s_{r, t} + c^w_rx^w_{r, t}] + \sum_{p \in P} c^c_px^c_{p, t} + \sum_{a \in A}\sum_{x^a_i \in X_a} c^a_ix^a_{i, t} + \sum_{l \in L}\sum_{x^l_i \in X_l} c^l_ix^l_{i, t}\right]\label{eq:jx} \\
+	J_Z(Z) = \sum_{d \in D}\left[\sum_{a \in A}\sum_{z^a_j \in Z_a} c^a_jz^a_{j, d} + \sum_{l \in A}\sum_{z^l_j \in Z_a} c^l_jz^l_{j, d}\right]\label{eq:jz}
+\end{gather}
+
+%\begin{gather}
+%	\min_{X \in \overline{X}, Z \in \overline{Z}} \ J(X, Z) = J_X(X) + J_Z(Z)\label{eq:min} \\
+%	J_X(X) = \sum_{t \in T}\left[\sum_{r \in R} [c^s_rx^s_r + c^w_rx^w_r] + \sum_{p \in P} c_{c, p}x_{c, p} + \sum_{a \in A}\sum_{x_{a,i} \in X_a} c_{a,i}x_{a,i} + \sum_{l \in L}\sum_{x_{l,i} \in X_l} c_{l,i}x_{l,i}\right]\label{eq:jx} \\
+%	J_Z(Z) = \sum_{d \in D}\left[\sum_{a \in A}\sum_{z_{a,j} \in Z_a} c_{a,j}z_{a,j} + \sum_{l \in A}\sum_{z_{l,j} \in Z_a} c_{l,j}z_{l,j}\right]\label{eq:jz}
+%\end{gather}
+
+The overall cost function, expressed in \eqref{eq:min}, minimizes operational costs $J_X$ as a function of operational variables $X$ and strategic costs $J_Z$ as a function of strategic variables $Z$. Operational costs, expressed in  \eqref{eq:jx}, are the sum across time-steps $T$ of the sum of regional shortfall $x_s$ and wastage $x_w$, policy compliance $x_c$, asset operations $x^a_i$ and line operations $x^l_i$. Shortfall and wastage are optional variables which serve to penalize failure to balance energy in a region and, thus, allow for soft enforcement of the regional balancing constraint. Compliance costs serve to penalize failing to meet a policy constraint and allow for soft enforcement of the constraint. Operations for assets and lines include variables such as energy production, consumption, and transmission. Strategic costs, expressed in \eqref{eq:jz}, are the sum across investment periods $D$ of asset capacity expansion $z^a_j$ and line capacity expansion $z^l_j$. Assets and lines may have multiple operational and strategic variables, a single operational and/or strategic variable, or none of either.
+
+\subsubsection{Regional Energy Balance}
+
+\begin{gather}
+	\sum_{a \in A_r}\sum_{x^a_i \in X_a} x^a_{i, t} + \sum_{\theta \in \Theta_r}\sum_{l \in L_{(\theta, r)}} \eta^lx^l_{t} - \sum_{\phi \in \Phi_r}\sum_{l \in L_{(r, \phi)}} x^l_{t} + x^s_t - x^w_t = 0 \quad \forall\ t\in T,\ r \in R
+\end{gather}
+
+$\Theta_r$ is the set of nodes with transmission connections in to $r$, $\Phi_r$ is the set of nodes with transmission connections out of $r$
+
+\subsubsection{Renewable Profile Standard}
+
+\begin{gather}
+	\sum_{a \in A_{P, I}} y^a_d - \rho\sum_{a \in A_P} y^a_d \geq 0
+\end{gather}
+
+\subsubsection{Domain of Variables}
+
+\begin{gather}
+	X, Z \in \mathbb{R}
+\end{gather}
+
+\subsection{Implementation}
+
+
+\end{document}
