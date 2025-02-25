@@ -29,22 +29,19 @@ def test_simple_graph_loading(simple_graph):
     assert len(region2["object"].assets) == 1  # Load
 
 def test_optimization_results(simple_graph):
-    """Test that optimization produces expected results structure"""
-    network = Network(
-        steps=24,
-        shortfall_capacity=np.inf,
-        shortfall_cost=1e3,
-        wastage_capacity=np.inf,
-        wastage_cost=1e3,
-    ).from_graph(simple_graph)
-    
+    """Test that optimization produces expected results"""
+    network = Network(steps=24).from_graph(simple_graph)
     network.build()
     network.solve(solver={'_name': 'appsi_highs'})
     
-    # Check that key result types exist
-    assert any('gen1::production' in k for k in network.results.keys())
-    assert any('storage1::level' in k for k in network.results.keys())
-    assert any('line1::transmission' in k for k in network.results.keys())
+    # Check that we have results for all assets
+    assert 'gen1::production' in network.results
+    assert 'load1::shifted' in network.results
+    
+    # Check that production meets demand
+    total_production = sum(network.results['gen1::production'])
+    total_demand = sum(network.results['load1::shifted'])
+    assert abs(total_production - total_demand) < 1e-6
 
 def test_load_shifting(simple_graph):
     """Test that load shifting behaves as expected"""
