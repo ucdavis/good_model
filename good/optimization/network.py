@@ -1,18 +1,7 @@
 import time
-import numpy as np
 
 import networkx as nx
-import pyomo.environ as pyo
-from pyomo.opt import SolverFactory
-from pyomo.environ import (
-    ConcreteModel,
-    Var,
-    Objective,
-    Constraint,
-    NonNegativeReals,
-    Binary,
-    minimize,
-)
+import pyomo.environ as pyomo
 
 from copy import deepcopy
 
@@ -46,32 +35,29 @@ class Network:
         self.wastage_cost = kwargs.get('wastage_cost', None)
 
         self.graph = nx.DiGraph()
-        self.results = {}  # Initialize empty results dict
 
     def collect_results(self):
+
         self.results = {}
 
         for source, node in self.graph._node.items():
+
             self.results = node['object'].results(self.model, self.results)
 
             for target, edge in self.graph._adj[source].items():
+
                 self.results = edge['object'].results(self.model, self.results)
 
-        # Convert lists to numpy arrays
-        for k, v in self.results.items():
-            if isinstance(v, list):
-                self.results[k] = np.array(v)
-
     def solve(self, **kwargs):
-        """Solve the optimization problem"""
+
         self.verbose = kwargs.get('verbose', self.verbose)
         tee = kwargs.get('tee', False)
         solver_kw = kwargs.get('solver', {'_name': 'appsi_highs'})
 
-        # Create solver
-        solver = SolverFactory(**solver_kw)
-        
-        # Solve model
+        #Generating the solver object
+        solver = pyomo.SolverFactory(**solver_kw)
+
+        # Building and solving as a linear problem
         t0 = time.time()
         self.result = solver.solve(self.model, tee=tee, load_solutions=False)
         cprint(f'Problem Solved: {time.time() - t0}', self.verbose)
@@ -95,29 +81,28 @@ class Network:
         t0 = time.time()
         self.collect_results()
         cprint(f'Results Collected: {time.time() - t0}', self.verbose)
-        
+
         return self
 
     def build(self):
-        """Build the optimization model"""
-        self.model = ConcreteModel()
+
+        self.model = pyomo.ConcreteModel()
 
         # Define time steps
-        self.model.steps = range(self.steps)
-        self.model.time_step = self.time_step
+        self.model.steps = pyomo.Set(initialize = list(range(self.steps)))
+        self.model.time_step = pyomo.Param(initialize = self.time_step)
 
-        # Build model components
-        t0 = time.time()
+        # t0 = time.time()
         self.feasibility_parameters()
         self.assign_edge_objects()
-        cprint(f'Parameters Built: {time.time() - t0}', self.verbose)
+        # cprint(f'Parameters Built: {time.time() - t0}', self.verbose)
 
         t0 = time.time()
         self.build_parameters()
         cprint(f'Parameters Built: {time.time() - t0}', self.verbose)
 
         t0 = time.time()
-        self.build_variables() 
+        self.build_variables()
         cprint(f'Variables Built: {time.time() - t0}', self.verbose)
 
         t0 = time.time()
@@ -169,18 +154,20 @@ class Network:
                 target_node['object'].exports.append(edge)
 
     def build_objective(self):
+
         cost = 0
 
         for source, node in self.graph._node.items():
+
             cost += node['object'].objective(self.model)
 
             for target, edge in self.graph._adj[source].items():
+
                 cost += edge['object'].objective(self.model)
 
-        self.model.objective = Objective(
-            expr=cost, 
-            sense=minimize
-        )
+        self.model.objective = pyomo.Objective(
+            expr = cost, sense = pyomo.minimize
+            )
 
     def build_constraints(self):
 
@@ -213,42 +200,86 @@ class Network:
                 self.model = edge['object'].parameters(self.model)
 
     def from_graph(self, graph):
+
         graph = deepcopy(graph)
+
         graph = remove_self_edges(graph)
 
         for source, node in graph._node.items():
+
             _class = node.pop('_class')
             profiles = node.pop('profiles', {})
+
             assets = node.pop('assets', [])
             policies = node.pop('policies', [])
 
             self.add(_class, source, **node)
 
             for asset in assets:
+
                 _class = asset.pop('_class')
-                handle = asset.pop('handle')
+
                 asset['region'] = source
 
-                # Only try to resolve profile if it's a string reference
-                profile = asset.get('profile')
-                if isinstance(profile, str):
-                    asset['profile'] = profiles.get(profile)
+                # Handle profile if it's a string reference and exists
+                if 'profile' in asset and isinstance(asset['profile'], str):
+                    asset['profile'] = profiles.get(asset['profile'], None)
 
-                self.add(_class, handle, **asset)
+                # Use 'handle' if available, otherwise use 'id'
+                if 'handle' in asset:
+                    asset_id = asset['handle']
+                elif 'id' in asset:
+                    asset_id = asset['id']
+                    asset['handle'] = asset_id  # Add handle for consistency
+                else:
+                    asset_id = f"{source}_{asset.get('type', 'asset')}"
+                    asset['handle'] = asset_id  # Add handle for consistency
+
+                # Remove handle from kwargs to avoid duplicate argument
+                asset_handle = asset.pop('handle')
+                
+                self.add(_class, asset_handle, **asset)
 
             for policy in policies:
+
                 _class = policy.pop('_class')
-                handle = policy.pop('handle')
+
+                # Use 'handle' if available, otherwise use 'id' or generate one
+                if 'handle' in policy:
+                    policy_id = policy['handle']
+                elif 'id' in policy:
+                    policy_id = policy['id']
+                    policy['handle'] = policy_id  # Add handle for consistency
+                else:
+                    policy_id = f"{source}_policy"
+                    policy['handle'] = policy_id  # Add handle for consistency
+                    
                 policy['jurisdiction'] = source
-                self.add(_class, handle, **policy)
+
+                # Remove handle from kwargs to avoid duplicate argument
+                policy_handle = policy.pop('handle')
+                
+                self.add(_class, policy_handle, **policy)
 
         for source, _adj in graph._adj.items():
             for target, edge in _adj.items():
+
                 _class = edge.pop('_class')
-                handle = edge.pop('handle', f"{source}_{target}")
+
                 edge['source'] = source
                 edge['target'] = target
-                self.add(_class, handle, **edge)
+
+                # Use 'handle' if available, otherwise generate one
+                if 'handle' in edge:
+                    edge_id = edge['handle']
+                else:
+                    edge_id = f"{source}_{target}"
+                    edge['handle'] = edge_id  # Add handle for consistency
+                
+                # Remove handle from kwargs to avoid duplicate argument
+                edge_handle = edge.pop('handle')
+                
+                self.add(_class, edge_handle, **edge)
 
         return self
 

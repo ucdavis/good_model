@@ -29,7 +29,36 @@ class Producer(Asset):
         self.capacity_factor = kwargs.get('capacity_factor', 1)
 
     def parameters(self, model):
-
+        """Set up parameters for the producer"""
+        
+        # Handle profile if it's None or not long enough
+        if self.profile is None:
+            self.profile = [1.0] * len(model.steps)
+        elif len(self.profile) < len(model.steps):
+            # Pad profile with ones if it's too short
+            self.profile = np.pad(self.profile, (0, len(model.steps) - len(self.profile)), 
+                                 'constant', constant_values=1.0)
+        
+        # Get start and stop indices, defaulting to 0 and length of steps
+        start_idx = getattr(model, 'start', 0)
+        stop_idx = getattr(model, 'stop', len(model.steps))
+        
+        # Convert to int if they're not already
+        if hasattr(start_idx, 'value'):
+            start_idx = int(start_idx)
+        if hasattr(stop_idx, 'value'):
+            stop_idx = int(stop_idx)
+        
+        # Create profile parameter
+        handle = f"{self.handle}::profile"
+        self.handles.append(handle)
+        setattr(
+            model, handle,
+            pyomo.Param(model.steps,
+                initialize = {i: self.profile[i] for i in range(len(model.steps))}
+            )
+        )
+        
         # Capacity Expansion
         if not self.extensible:
 
@@ -39,6 +68,7 @@ class Producer(Asset):
                 model, handle,
                 pyomo.Param(initialize = 0),
             )
+        
 
         # Capacity Factor Profile
         if self.profile is None:

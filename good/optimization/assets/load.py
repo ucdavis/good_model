@@ -1,6 +1,7 @@
+import numpy as np
+
 from ..base.asset import Asset
 import pyomo.environ as pyomo
-import numpy as np
 
 class Load(Asset):
 
@@ -28,24 +29,40 @@ class Load(Asset):
 
         self.profile = kwargs.get('profile', None)
 
+        if self.profile is not None:
+
+            self.profile = np.array(self.profile)
+
     def parameters(self, model):
 
         if self.profile is None:
-
             self.profile = [0] * len(model.steps)
 
-        # print(self.handle, self.profile[:25])
+        # Get start and stop indices, defaulting to 0 and length of steps
+        start_idx = getattr(model, 'start', 0)
+        stop_idx = getattr(model, 'stop', len(model.steps))
+        
+        # Convert to int if they're not already
+        if hasattr(start_idx, 'value'):
+            start_idx = int(start_idx)
+        if hasattr(stop_idx, 'value'):
+            stop_idx = int(stop_idx)
+        
+        # Ensure profile is long enough
+        if len(self.profile) < stop_idx:
+            self.profile = np.pad(self.profile, (0, stop_idx - len(self.profile)), 'constant')
 
         handle = f"{self.handle}::profile"
         self.handles.append(handle)
         setattr(
             model, handle,
-            pyomo.Param(model.steps, initialize = self.profile[:len(model.steps)])
-        )
+            pyomo.Param(model.steps,
+                initialize = {i: self.profile[i] for i in range(start_idx, stop_idx)}
+                )
+            )
 
         # Capacity Expansion
         if not self.extensible:
-
             handle = f"{self.handle}::capex"
             self.handles.append(handle)
             setattr(
@@ -54,13 +71,12 @@ class Load(Asset):
             )
 
         if not self.shiftable:
-
             handle = f"{self.handle}::shift"
             self.handles.append(handle)
             setattr(
                 model, handle,
                 pyomo.Param(
-                    model.steps, initialize = [0] * len(model.steps)
+                    model.steps, initialize = {i: 0 for i in model.steps}
                     )
                 )
 
@@ -198,4 +214,3 @@ class Load(Asset):
         results[f'{handle}::shifted'] = np.array(results[f'{handle}::shifted'])
         
         return results
-

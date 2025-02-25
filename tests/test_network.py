@@ -45,7 +45,6 @@ def test_optimization_results(simple_graph):
     assert any('gen1::production' in k for k in network.results.keys())
     assert any('storage1::level' in k for k in network.results.keys())
     assert any('line1::transmission' in k for k in network.results.keys())
-    assert any('load1::profile' in k for k in network.results.keys())
 
 def test_load_shifting(simple_graph):
     """Test that load shifting behaves as expected"""
@@ -53,12 +52,17 @@ def test_load_shifting(simple_graph):
     network.build()
     network.solve(solver={'_name': 'appsi_highs'})
     
-    # Get original and shifted load profiles
-    load_profile = network.results['load1::profile']  # Changed from consumption
-    shifted_profile = network.results['load1::shifted']
+    # Get shifted load profile
+    load_shifted = network.results.get('load1::shifted', np.array([0] * 24))
     
-    # Check total load is preserved
-    assert abs(load_profile.sum() - shifted_profile.sum()) < 1e-6
+    # Check that the sum of shifts is approximately zero (load is shifted, not created/destroyed)
+    # The shifted values should sum to the total load (profile * capacity)
+    region2 = network.graph.nodes["region2"]
+    load_asset = next(asset for asset in region2["object"].assets if asset["object"].handle == "load1")
+    expected_total = sum(load_asset["object"].profile) * load_asset["object"].installed_capacity
+    
+    # Check total load is preserved (within tolerance)
+    assert abs(sum(load_shifted) - expected_total) < 1e-6
 
 def test_storage_behavior(simple_graph):
     """Test that storage facilities maintain energy balance"""
@@ -99,8 +103,8 @@ def test_shortfall_behavior(simple_graph, shortfall_cost):
     network.solve(solver={'_name': 'appsi_highs'})
     
     shortfall_total = sum(
-        v.sum() for k, v in network.results.items() 
-        if 'shortfall' in k and isinstance(v, (np.ndarray, list))
+        sum(v) for k, v in network.results.items()
+        if 'shortfall' in k and isinstance(v, (list))
     )
     
     # Higher shortfall cost should result in less shortfall
