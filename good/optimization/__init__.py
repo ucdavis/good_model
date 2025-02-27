@@ -4,7 +4,6 @@ from .base.edge import Edge
 from .base.asset import Asset
 from .base.policy import Policy
 from .buses.region import Region
-from .buses.jurisdiction import Jurisdiction
 from .edges.line import Line
 from .assets.producer import Producer
 from .assets.store import Store
@@ -17,7 +16,6 @@ __all__ = [
     'Asset',
     'Policy',
     'Region',
-    'Jurisdiction',
     'Line',
     'Producer',
     'Store',

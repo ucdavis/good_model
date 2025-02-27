@@ -1,0 +1,4 @@
+networkx==3.3
+numpy==2.2.3
+Pyomo==6.9.0
+scipy==1.15.2

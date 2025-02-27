@@ -161,6 +161,16 @@ class Region(Node):
                 model, local_results['assets']
                 )
 
+        if hasattr(model, 'dual'):
+
+            handle = f"{self.handle}::balance"
+
+            duals = {str(k): model.dual[k] for k in model.dual.keys()}
+
+            local_results['clearing_price'] = (
+                [v for k, v in duals.items() if handle in k]
+                )
+
         results[self.handle] = local_results
 
         return results

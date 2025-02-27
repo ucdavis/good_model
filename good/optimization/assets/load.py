@@ -174,10 +174,14 @@ class Load(Asset):
 
         capacity = self.installed_capacity + capex
         
-        cost = pyomo.quicksum(
-            (profile[t] + shift[t]) * model.time_step * capacity * self.operating_cost \
+        shift_cost = pyomo.quicksum(
+            shift[t] * model.time_step * capacity * self.operating_cost \
             for t in model.steps
             )
+
+        expansion_cost = capex * self.capex_cost
+
+        cost = shift_cost + expansion_cost
 
         return cost
 

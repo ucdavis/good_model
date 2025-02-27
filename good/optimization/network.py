@@ -3,12 +3,13 @@ import time
 import numpy as np
 import networkx as nx
 import pyomo.environ as pyomo
+import pyomo.opt as opt
 import pyomo.util.model_size as model_size
 
 from copy import deepcopy
 
 from .base import Node, Edge, Asset, Policy
-from .buses import Region, Jurisdiction
+from .buses import Region
 from .assets import Producer, Load, Store
 from .edges import Line
 from .policies import RPS
@@ -17,7 +18,7 @@ from .exceptions import *
 from ..utilities import cprint
 from ..graph import remove_self_edges
 
-default_classes = ['Region', 'Jurisdiction', 'Producer', 'Load', 'Store', 'Line', 'RPS']
+default_classes = ['Region', 'Producer', 'Load', 'Store', 'Line', 'RPS']
 base_classes = ['Node', 'Edge', 'Asset', 'Policy']
 
 # Network class
@@ -67,7 +68,10 @@ class Network:
         solver_kw = kwargs.get('solver', {'_name': 'glpk'})
 
         #Generating the solver object
-        solver = pyomo.SolverFactory(**solver_kw)
+        solver = opt.SolverFactory(**solver_kw)
+        # solver = opt.SolverFactory('cplex_direct')
+
+        self.model.dual = pyomo.Suffix(direction = pyomo.Suffix.IMPORT)
 
         # Building and solving as a linear problem
         t0 = time.time()
