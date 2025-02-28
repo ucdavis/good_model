@@ -151,8 +151,6 @@ class Network:
 
             for target, edge in _adj.items():
 
-                # print(source_node)
-
                 target_node = self.graph._node[target]
 
                 source_node['object'].imports.append(edge)
@@ -263,6 +261,7 @@ class Network:
             # print(policy)
 
             _class = policy.pop('_class')
+            policy['assets'] = self.assets
 
             self.add(_class, policy['id'], **policy)
 
@@ -327,14 +326,6 @@ class Network:
         self.assets.append(kwargs)
 
         self.graph._node[region]['object'].assets.append(kwargs)
-
-        # jurisdiction = kwargs.get('jurisdiction', None)
-
-        # if jurisdiction is not None:
-            
-        #     if jurisdiction in self.graph.nodes:
-
-        #         self.graph._node[jurisdiction]['object'].assets.append(kwargs)
 
     def add_policy(self, _class, handle, **kwargs):
 

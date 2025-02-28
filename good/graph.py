@@ -144,27 +144,17 @@ def supergraph(graphs):
 
 	for graph in graphs:
 
-		for source, adj in graph._adj.items():
+		for source, _adj in graph._adj.items():
 
-			names.append(source)
+			nodes.append((source, graph._node[source]))
 
-			coords_s = (graph._node[source]['x'], graph._node[source]['y'])
+			for target, edge in _adj.items():
 
-			nodes.append((coords_s, graph._node[source]))
-
-			for target, edge in adj.items():
-
-				coords_t = (graph._node[target]['x'], graph._node[target]['y'])
-
-				edges.append((coords_s, coords_t, edge))
+				edges.append((source, target, edge))
 
 	supergraph.add_nodes_from(nodes)
 
 	supergraph.add_edges_from(edges)
-
-	supergraph = nx.relabel_nodes(
-		supergraph, {k: names[idx] for idx, k in enumerate(supergraph.nodes)}
-		)
 
 	return supergraph
 

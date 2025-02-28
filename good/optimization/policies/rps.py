@@ -36,12 +36,21 @@ class RPS(Policy):
         inclusion_criteria = kwargs.get('inclusion_criteria', [])
         exclusion_criteria = kwargs.get('exclusion_criteria', [])
 
+        # print(self.handle, 'i', inclusion_criteria)
+
         self.inclusion_criteria = self.interpret(inclusion_criteria)
         self.exclusion_criteria = self.interpret(exclusion_criteria)
+
+        # print(self.handle, 'i', self.inclusion_criteria)
 
         self.assets = kwargs.get('assets', [])
         self.included = self.build_set(self.assets, self.inclusion_criteria)
         self.excluded = self.build_set(self.assets, self.exclusion_criteria)
+
+        # print(self.assets)
+
+        # print(self.handle, 'i', [a['id'] for a in self.included])
+        # print(self.handle, 'e', [a['id'] for a in self.excluded])
 
         self.active = len(self.included) > 0
 
@@ -71,6 +80,8 @@ class RPS(Policy):
             for fun in criteria:
 
                 include *= fun(asset)
+
+                # print(asset['id'], fun(asset), include)
 
             if include:
 
