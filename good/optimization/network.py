@@ -69,7 +69,6 @@ class Network:
                 raise Exception(f"Problem is infeasible: {status}")
             elif status != 'optimal':
                 if status == 'unknown' and self.result.solver.status == 'ok':
-                    # Some solvers return unknown even when solution is valid
                     pass
                 else:
                     raise Exception(f"Solver terminated with status: {status}")
