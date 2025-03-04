@@ -147,7 +147,7 @@ class Load(Asset):
         return model
 
     def energy(self, model, step = None):
-
+        """Energy contribution of the load"""
         profile = getattr(model, f"{self.handle}::profile")
         shift = getattr(model, f"{self.handle}::shift")
         capex = getattr(model, f"{self.handle}::capex")
@@ -155,16 +155,13 @@ class Load(Asset):
         capacity = self.installed_capacity + capex
         
         if step is None:
-
             energy = pyomo.quicksum(
                 (profile[t] + shift[t]) * model.time_step * capacity for t in model.steps
                 )
-
         else:
-
             energy = (profile[step] + shift[step]) * model.time_step * capacity
 
-        return energy
+        return -1 * energy  # Negative for consumption
 
     def capacity(self, model, step = None):
 
@@ -204,7 +201,7 @@ class Load(Asset):
         shifted = []
         for t in model.steps:
             base = profile[t] * self.installed_capacity
-            shift_amount = pyomo.value(shift[t]) if self.shiftable else 0
+            shift_amount = shift[t].value if self.shiftable else 0
             shifted.append(base + shift_amount)
         
         results[f'{handle}::shifted'] = shifted

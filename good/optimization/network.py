@@ -66,7 +66,7 @@ class Network:
         if hasattr(self.result, 'solver'):
             status = str(self.result.solver.termination_condition)
             if status in ['infeasible', 'infeasibleOrUnbounded']:
-                raise Exception("Problem is infeasible")
+                raise Exception(f"Problem is infeasible: {status}")
             elif status != 'optimal':
                 if status == 'unknown' and self.result.solver.status == 'ok':
                     # Some solvers return unknown even when solution is valid

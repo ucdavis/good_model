@@ -44,74 +44,66 @@ class Region(Node):
         return model
 
     def variables(self, model):
-
+        """Define variables for the region"""
+        
+        # Define shortfall and wastage variables for each time step with proper bounds
+        model.add_component(
+            f"{self.handle}::shortfall",
+            pyomo.Var(model.steps, domain=pyomo.NonNegativeReals, 
+                     bounds=(0, self.shortfall_capacity))
+        )
+        
+        model.add_component(
+            f"{self.handle}::wastage",
+            pyomo.Var(model.steps, domain=pyomo.NonNegativeReals,
+                     bounds=(0, self.wastage_capacity))
+        )
+        
+        # Initialize variables to zero
+        for step in model.steps:
+            getattr(model, f"{self.handle}::shortfall")[step] = 0
+            getattr(model, f"{self.handle}::wastage")[step] = 0
+        
         for asset in self.assets:
-
             model = asset['object'].variables(model)
-
-        # Shortfall - avoids infeasibility due to insufficient supply
-        handle = f"{self.handle}::shortfall"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                bounds = (0, self.shortfall_capacity),
-                ),
-            )
-
-        # Wastage - avoids infeasibility due to excess supply
-        handle = f"{self.handle}::wastage"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                bounds = (0, self.wastage_capacity),
-                ),
-            )
 
         return model
 
     def constraints(self, model):
         """Energy balance constraints"""
-
+        
         for asset in self.assets:
-
             model = asset['object'].constraints(model)
-
+        
         # Add constraints for all time steps
         for step in model.steps:
-
             # Energy
             asset_net_energy = sum(
                 asset['object'].energy(model, step) for asset in self.assets 
             )
-
+            
             imported_energy = sum(
                 import_edge['object'].receive(model, step) for import_edge in self.imports
                 )
-
+            
             exported_energy = sum(
                 export_edge['object'].transmit(model, step) for export_edge in self.exports
                 )
-
+            
             shortfall = getattr(model, f"{self.handle}::shortfall")[step]
             wastage = getattr(model, f"{self.handle}::wastage")[step]
             
+            # Energy balance constraint
             net_energy = (
                 asset_net_energy + imported_energy - exported_energy + shortfall - wastage
                 )
             
-            if not isinstance(asset_net_energy, float):
-
-                setattr(
-                    model, f"{self.handle}::balance:{step}",
-                    pyomo.Constraint(expr = net_energy == 0)
-                )
-
+            # Always add the energy balance constraint
+            setattr(
+                model, f"{self.handle}::balance:{step}",
+                pyomo.Constraint(expr = net_energy == 0)
+            )
+        
         return model
 
     def objective(self, model):

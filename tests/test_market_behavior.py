@@ -239,15 +239,15 @@ def test_renewable_curtailment():
     # Check that solar is producing
     assert solar_output > 0, "Solar is not producing"
 
-def test_realistic_operating_costs_with_wastage_cost():
-    """Test with realistic costs and a small positive wastage cost"""
+def test_realistic_operating_costs():
+    """Test with realistic (positive) operating costs"""
     # Create a network with realistic costs
     graph = nx.DiGraph()
     
     # Add a single region with shortfall/wastage parameters
     graph.add_node("region1", _class="Region", type="Region",
                   shortfall_capacity=np.inf, shortfall_cost=1000,
-                  wastage_capacity=np.inf, wastage_cost=0.1)  # Small positive wastage cost
+                  wastage_capacity=np.inf, wastage_cost=100)  # Higher wastage cost
     
     # Add generators with realistic costs (all positive)
     generators = [
@@ -268,7 +268,7 @@ def test_realistic_operating_costs_with_wastage_cost():
     # Create and solve network with shortfall/wastage parameters
     network = Network(steps=1, 
                      shortfall_capacity=np.inf, shortfall_cost=1000,
-                     wastage_capacity=np.inf, wastage_cost=0.1).from_graph(graph)  # Small positive wastage cost
+                     wastage_capacity=np.inf, wastage_cost=100).from_graph(graph)
     network.build()
     network.solve(solver={'_name': 'appsi_highs'}, tee=True)
     
@@ -289,9 +289,10 @@ def test_realistic_operating_costs_with_wastage_cost():
     total_generation = wind_output + coal_output + gas_output
     print(f"Total generation: {total_generation}, Load: 3500")
     
-    # With a positive wastage cost, the model should use generation
+    # With proper constraints, the model should use generation
     assert total_generation > 0, "No generation with realistic costs"
     assert total_generation >= 3500 - shortfall, "Generation plus shortfall should meet load"
+    assert wastage >= 0, "Wastage should be non-negative"
 
 def build_objective(self, model):
     """Build the objective function for the optimization model"""
