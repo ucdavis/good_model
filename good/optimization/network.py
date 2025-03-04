@@ -45,6 +45,33 @@ class Network:
 
         return model_size.build_model_size_report(self.model)
 
+    # def build_solution(self):
+
+    #     nodes = []
+    #     edges = []
+
+    #     for source, node in self.graph._node.items():
+
+    #         # for asset in node.assets:
+
+    #         #     asset_results = asset['object'].results(self.model)
+    #         #     asset = {**asset, **asset_results}
+
+    #         node_results = node['object'].results(self.model)
+
+    #         nodes.append((source, {**node, **node_results}))
+
+    #         for target, edge in self.graph._adj[source].items():
+
+    #             edge_results = edge['object'].results(self.model)
+
+    #             edges.append((source, target, {**edge, **edge_results}))
+
+
+    #     self.solution = nx.DiGraph()
+    #     self.solution.add_nodes_from(nodes)
+    #     self.solution.add_edges_from(edges)
+
     def collect_results(self):
 
         self.results = {}
@@ -81,6 +108,7 @@ class Network:
         # Making solution dictionary
         t0 = time.time()
         self.collect_results()
+        # self.build_solution()
         cprint(f'Results Collected: {time.time() - t0}', self.verbose)
 
     def build(self):

@@ -118,7 +118,7 @@ class Producer(Asset):
             )
 
         # Ramp rate
-        def ramp_rate_rule(m, t):
+        def ramp_rate_rule_upper(m, t):
 
             if t == 0:
 
@@ -127,18 +127,40 @@ class Producer(Asset):
             else:
 
                 rule = (
-                    -self.ramp_rate * (self.installed_capacity + capex),
-                    production[t] - production[t - 1],
+                    production[t] - production[t - 1] <=
                     self.ramp_rate * (self.installed_capacity + capex)
                     )
 
             return rule
 
         setattr(
-            model, f"{self.handle}::ramp_rate_constraint",
+            model, f"{self.handle}::ramp_rate_upper_constraint",
             pyomo.Constraint(
                 model.steps,
-                rule = lambda m, t: ramp_rate_rule(m, t),
+                rule = lambda m, t: ramp_rate_rule_upper(m, t),
+                )
+            )
+
+        def ramp_rate_rule_lower(m, t):
+
+            if t == 0:
+
+                rule = (0, production[t], np.inf)
+
+            else:
+
+                rule = (
+                    production[t] - production[t - 1] >=
+                    -self.ramp_rate * (self.installed_capacity + capex)
+                    )
+
+            return rule
+
+        setattr(
+            model, f"{self.handle}::ramp_rate_lower_constraint",
+            pyomo.Constraint(
+                model.steps,
+                rule = lambda m, t: ramp_rate_rule_lower(m, t),
                 )
             )
 

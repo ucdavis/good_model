@@ -11,14 +11,17 @@ class Store(Asset):
 
         # Operational parameters
         self.installed_capacity = kwargs.get('installed_capacity', 0)
+        self.operating_cost = kwargs.get('operating_cost', 0)
         self.efficiency = kwargs.get('efficiency', 1)
         self.ramp_rate = kwargs.get('ramp_rate', 1)
         self.initial = kwargs.get('initial', 0)
 
         # Can capacity be expanded
-        self.capex_limit = kwargs.get('capex_limit', 0)
+        self.capex_capacity = kwargs.get('capex_capacity', 0)
         self.capex_cost = kwargs.get('capex_cost', 0)
-        self.extensible = self.capex_limit > 0
+        self.extensible = self.capex_capacity > 0
+
+        # print(self.handle, self.capex_capacity, self.extensible)
 
     def parameters(self, model):
 
@@ -121,13 +124,13 @@ class Store(Asset):
             pyomo.Constraint(
                 model.steps,
                 rule = (
-                    lambda m, t: (0, level[t], self.installed_capacity)
+                    lambda m, t: self.installed_capacity + capex - level[t] >= 0
                     )
                 )
             )
 
         # Ramp rate
-        def ramp_rate_rule(m, t):
+        def ramp_rate_rule_upper(m, t):
 
             if t == 0:
 
@@ -136,22 +139,60 @@ class Store(Asset):
             else:
 
                 rule = (
-                    -self.ramp_rate * (self.installed_capacity + capex),
-                    level[t] - level[t - 1],
+                    level[t] - level[t - 1] <=
                     self.ramp_rate * (self.installed_capacity + capex)
                     )
 
             return rule
 
         setattr(
-            model, f"{self.handle}::ramp_rate_constraint",
+            model, f"{self.handle}::ramp_rate_upper_constraint",
             pyomo.Constraint(
                 model.steps,
-                rule = lambda m, t: ramp_rate_rule(m, t),
+                rule = lambda m, t: ramp_rate_rule_upper(m, t),
+                )
+            )
+
+        def ramp_rate_rule_lower(m, t):
+
+            if t == 0:
+
+                rule = (0, level[t], np.inf)
+
+            else:
+
+                rule = (
+                    level[t] - level[t - 1] >=
+                    -self.ramp_rate * (self.installed_capacity + capex)
+                    )
+
+            return rule
+
+        setattr(
+            model, f"{self.handle}::ramp_rate_lower_constraint",
+            pyomo.Constraint(
+                model.steps,
+                rule = lambda m, t: ramp_rate_rule_lower(m, t),
                 )
             )
 
         return model
+
+    def objective(self, model):
+
+        production = getattr(model, f"{self.handle}::production")
+        
+        production_cost = pyomo.quicksum(
+            production[t] * model.time_step * self.operating_cost  for t in model.steps
+        )
+
+        capex = getattr(model, f"{self.handle}::capex")
+
+        expansion_cost = capex * self.capex_cost
+
+        cost = production_cost + expansion_cost
+        
+        return cost
 
     def energy(self, model, step = None):
 
