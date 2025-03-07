@@ -16,6 +16,8 @@ class Store(Asset):
         self.ramp_rate = kwargs.get('ramp_rate', 1)
         self.initial = kwargs.get('initial', 0)
 
+        # print(self.efficiency)
+
         # Can capacity be expanded
         self.capex_capacity = kwargs.get('capex_capacity', 0)
         self.capex_cost = kwargs.get('capex_cost', 0)
@@ -101,8 +103,7 @@ class Store(Asset):
 
             if t == 0:
 
-                # rule = (self.initial, level[t], self.initial)
-                rule = level[t] + consumption[t] - production[t] == self.initial
+                rule = (0, level[t], np.inf)
 
             else:
 
@@ -115,6 +116,34 @@ class Store(Asset):
             pyomo.Constraint(
                 model.steps,
                 rule = lambda m, t: level_rule(m, t),
+                )
+            )
+
+        setattr(
+            model, f"{self.handle}::level_initial_constraint",
+            pyomo.Constraint(
+                rule = level[model.steps.at(1)] == self.initial
+                )
+            )
+
+        setattr(
+            model, f"{self.handle}::level_final_constraint",
+            pyomo.Constraint(
+                rule = level[model.steps.at(-1)] == self.initial
+                )
+            )
+
+        setattr(
+            model, f"{self.handle}::production_intial_constraint",
+            pyomo.Constraint(
+                rule = production[model.steps.at(1)] == 0
+                )
+            )
+
+        setattr(
+            model, f"{self.handle}::consumption_intial_constraint",
+            pyomo.Constraint(
+                rule = consumption[model.steps.at(1)] == 0
                 )
             )
 
