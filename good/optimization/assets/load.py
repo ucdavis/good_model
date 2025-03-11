@@ -27,6 +27,8 @@ class Load(Asset):
         self.shift_portion = kwargs.get('shift_portion', 0)
         self.shiftable = self.shift_portion > 0
 
+        self.shift_window = kwargs.get('shift_window', None)
+
         self.profile = kwargs.get('profile', None)
 
         if self.profile is not None:
@@ -34,6 +36,10 @@ class Load(Asset):
             self.profile = np.array(self.profile)
 
     def parameters(self, model):
+
+        if self.shift_window is None:
+
+            self.shift_window = len(model.steps)
 
         if self.profile is None:
 
@@ -129,12 +135,22 @@ class Load(Asset):
                     )
                 )
 
-            shift_sum = pyomo.quicksum(shift[t] for t in model.steps)
+            # print(np.arange(model.steps.at(1), model.steps.at(-1)))
+            for start in np.arange(
+                model.steps.at(1), model.steps.at(-1), self.shift_window
+                ):
 
-            setattr(
-                model, f"{self.handle}::shift_sum_constraint",
-                pyomo.Constraint(expr = (0, shift_sum, 0)),
-                )
+                # print(start)
+                finish = min([start + self.shift_window, model.steps.at(-1)])
+
+                indices = np.arange(start, finish, 1)
+
+                shift_sum = pyomo.quicksum(shift[t] for t in indices)
+
+                setattr(
+                    model, f"{self.handle}::shift_sum_constraint_{start}",
+                    pyomo.Constraint(expr = (0, shift_sum, 0)),
+                    )
 
         return model
 

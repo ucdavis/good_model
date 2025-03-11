@@ -120,7 +120,7 @@ class Network:
             initialize = list(range(self.steps[1] - self.steps[0]))
             )
         self.model.start = pyomo.Param(initialize = self.steps[0], domain = pyomo.Integers)
-        self.model.stop = pyomo.Param(initialize = self.steps[1], domain = pyomo.Integers)
+        self.model.stop = pyomo.Param(initialize = self.steps[-1], domain = pyomo.Integers)
         self.model.time_step = pyomo.Param(initialize = self.time_step)
         # self.model.total_time = len(self.model.steps) * self.model.time_step
 

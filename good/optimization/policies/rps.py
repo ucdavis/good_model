@@ -36,21 +36,12 @@ class RPS(Policy):
         inclusion_criteria = kwargs.get('inclusion_criteria', [])
         exclusion_criteria = kwargs.get('exclusion_criteria', [])
 
-        # print(self.handle, 'i', inclusion_criteria)
-
         self.inclusion_criteria = self.interpret(inclusion_criteria)
         self.exclusion_criteria = self.interpret(exclusion_criteria)
-
-        # print(self.handle, 'i', self.inclusion_criteria)
 
         self.assets = kwargs.get('assets', [])
         self.included = self.build_set(self.assets, self.inclusion_criteria)
         self.excluded = self.build_set(self.assets, self.exclusion_criteria)
-
-        # print(self.assets)
-
-        # print(self.handle, 'i', [a['id'] for a in self.included])
-        # print(self.handle, 'e', [a['id'] for a in self.excluded])
 
         self.active = len(self.included) > 0
 
@@ -66,6 +57,20 @@ class RPS(Policy):
         self.capacity_minimum = kwargs.get('capacity_minimum', 0)
         self.capacity_minimum_rule = self.capacity_minimum > 0
 
+        self.make_included_generation = (
+            self.generation_portion_rule or
+            self.generation_minimum_rule
+            )
+
+        self.make_excluded_generation = self.generation_portion_rule
+
+        self.make_included_capacity = (
+            self.capacity_portion_rule or
+            self.capacity_minimum_rule
+            )
+        
+        self.make_excluded_capacity = self.capacity_portion_rule
+
         self.penalty = kwargs.get('penalty', np.inf)
         self.strict = np.isinf(self.penalty)
 
@@ -80,8 +85,6 @@ class RPS(Policy):
             for fun in criteria:
 
                 include *= fun(asset)
-
-                # print(asset['id'], fun(asset), include)
 
             if include:
 
@@ -106,84 +109,78 @@ class RPS(Policy):
 
         if self.strict and self.active:
 
+            if self.make_included_generation:
+
+                included_generation = sum(
+                        asset['object'].energy(model) for asset in self.included 
+                    )
+
+            if self.make_excluded_generation:
+
+                excluded_generation = sum(
+                        asset['object'].energy(model) for asset in self.excluded 
+                    )
+
+            if self.make_included_capacity:
+
+                included_capacity = sum(
+                        asset['object'].capacity(model) for asset in self.included 
+                    )
+
+            if self.make_excluded_capacity:
+
+                excluded_capacity = sum(
+                        asset['object'].capacity(model) for asset in self.excluded 
+                )
+
             if self.generation_portion_rule:
 
-                included_net = sum(
-                    asset['object'].energy(model) for asset in self.included 
-                )
-
-                excluded_net = sum(
-                    asset['object'].energy(model) for asset in self.excluded 
-                )
-
-                if not isinstance(included_net, float):
-
-                    setattr(
-                        model, f"{self.handle}::rps_generation_portion",
-                        pyomo.Constraint(
-                            expr = (
-                                included_net >= included_net * self.generation_portion +
-                                excluded_net * self.generation_portion
-                                )
+                setattr(
+                    model, f"{self.handle}::rps_generation_portion",
+                    pyomo.Constraint(
+                        expr = (
+                            included_generation >=
+                            included_generation * self.generation_portion +
+                            excluded_generation * self.generation_portion
                             )
                         )
+                    )
 
             if self.capacity_portion_rule:
 
-                included_net = sum(
-                    asset['object'].capacity(model) for asset in self.included 
-                )
-
-                excluded_net = sum(
-                    asset['object'].capacity(model) for asset in self.excluded 
-                )
-
-                if not isinstance(included_net, float):
-
-                    setattr(
-                        model, f"{self.handle}::rps_capacity_portion",
-                        pyomo.Constraint(
-                            expr = (
-                                included_net >= included_net * self.capacity_portion +
-                                excluded_net * self.capacity_portion
-                                )
+                setattr(
+                    model, f"{self.handle}::rps_capacity_portion",
+                    pyomo.Constraint(
+                        expr = (
+                            included_capacity >=
+                            included_capacity * self.capacity_portion +
+                            excluded_capacity * self.capacity_portion
                             )
                         )
+                    )
 
             if self.generation_minimum_rule:
 
-                included_net = sum(
-                    asset['object'].capacity(model) for asset in self.included 
-                )
-
-                if not isinstance(included_net, float):
-
-                    setattr(
-                        model, f"{self.handle}::rps_generation_minimum",
-                        pyomo.Constraint(
-                            expr = (
-                                included_net >= self.generation_minimum
-                                )
+                setattr(
+                    model, f"{self.handle}::rps_generation_minimum",
+                    pyomo.Constraint(
+                        expr = (
+                            included_generation >= self.generation_minimum
                             )
                         )
+                    )
 
             if self.capacity_minimum_rule:
 
-                included_net = sum(
-                    asset['object'].capacity(model) for asset in self.included 
-                )
-
-                if not isinstance(included_net, float):
-
-                    setattr(
-                        model, f"{self.handle}::rps_capacity_minimum",
-                        pyomo.Constraint(
-                            expr = (
-                                included_net >= self.capacity_minimum
-                                )
+                setattr(
+                    model, f"{self.handle}::rps_capacity_minimum",
+                    pyomo.Constraint(
+                        expr = (
+                            included_capacity >= self.capacity_minimum
                             )
                         )
-        
+                    )
+    
         return model
 
     def objective(self, model):
@@ -192,52 +189,52 @@ class RPS(Policy):
 
         if not self.strict and self.active:
 
+            if self.make_included_generation:
+
+                included_generation = sum(
+                        asset['object'].energy(model) for asset in self.included 
+                    )
+
+            if self.make_excluded_generation:
+
+                excluded_generation = sum(
+                        asset['object'].energy(model) for asset in self.excluded 
+                    )
+
+            if self.make_included_capacity:
+
+                included_capacity = sum(
+                        asset['object'].capacity(model) for asset in self.included 
+                    )
+
+            if self.make_excluded_capacity:
+
+                excluded_capacity = sum(
+                        asset['object'].capacity(model) for asset in self.excluded 
+                )
+
             if self.generation_portion_rule:
 
-                included_net = sum(
-                    asset['object'].energy(model) for asset in self.included 
-                )
-
-                excluded_net = sum(
-                    asset['object'].energy(model) for asset in self.excluded 
-                )
-
                 cost = (
-                    included_net * self.generation_portion +
-                    excluded_net * self.generation_portion -
-                    included_net
+                    included_generation * self.generation_portion +
+                    excluded_generation * self.generation_portion -
+                    included_generation
                     ) * self.penalty
 
             if self.capacity_portion_rule:
 
-                included_net = sum(
-                    asset['object'].capacity(model) for asset in self.included 
-                )
-
-                excluded_net = sum(
-                    asset['object'].capacity(model) for asset in self.excluded 
-                )
-
                 cost = (
-                    included_net * self.generation_portion +
-                    excluded_net * self.generation_portion -
-                    included_net
+                    included_capacity * self.generation_portion +
+                    excluded_capacity * self.generation_portion -
+                    included_capacity
                     ) * self.penalty
 
             if self.generation_minimum_rule:
 
-                included_net = sum(
-                    asset['object'].capacity(model) for asset in self.included 
-                )
-
-                cost = (self.generation_minimum - included_net) * self.penalty
+                cost = (self.generation_minimum - included_generation) * self.penalty
 
             if self.capacity_minimum_rule:
 
-                included_net = sum(
-                    asset['object'].capacity(model) for asset in self.included 
-                )
-
-                cost = (self.capacity_minimum - included_net) * self.penalty
+                cost = (self.capacity_minimum - included_capacity) * self.penalty
         
         return cost
