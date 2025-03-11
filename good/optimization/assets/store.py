@@ -13,7 +13,8 @@ class Store(Asset):
         self.installed_capacity = kwargs.get('installed_capacity', 0)
         self.operating_cost = kwargs.get('operating_cost', 0)
         self.efficiency = kwargs.get('efficiency', 1)
-        self.ramp_rate = kwargs.get('ramp_rate', 1)
+        self.production_rate = kwargs.get('production_rate', 1)
+        self.consumption_rate = kwargs.get('consumption_rate', 1)
         self.initial = kwargs.get('initial', 0)
 
         # print(self.efficiency)
@@ -22,8 +23,6 @@ class Store(Asset):
         self.capex_capacity = kwargs.get('capex_capacity', 0)
         self.capex_cost = kwargs.get('capex_cost', 0)
         self.extensible = self.capex_capacity > 0
-
-        # print(self.handle, self.capex_capacity, self.extensible)
 
     def parameters(self, model):
 
@@ -103,11 +102,15 @@ class Store(Asset):
 
             if t == 0:
 
-                rule = (0, level[t], np.inf)
+                rule = (self.initial, level[t], self.initial)
 
             else:
 
-                rule = level[t] == level[t - 1] + consumption[t] - production[t]
+                rule = level[t] == (
+                    level[t - 1] +
+                    consumption[t] * model.time_step -
+                    production[t] * model.time_step
+                    )
                     
             return rule
 
@@ -147,6 +150,32 @@ class Store(Asset):
                 )
             )
 
+        setattr(
+            model, f"{self.handle}::production_constraint",
+            pyomo.Constraint(
+                model.steps,
+                rule = (
+                    lambda m, t: (
+                        (self.installed_capacity + capex) * self.production_rate
+                         - production[t] >= 0
+                         )
+                    )
+                )
+            )
+
+        setattr(
+            model, f"{self.handle}::consumption_constraint",
+            pyomo.Constraint(
+                model.steps,
+                rule = (
+                    lambda m, t: (
+                        (self.installed_capacity + capex) * self.consumption_rate
+                         - consumption[t] >= 0
+                         )
+                    )
+                )
+            )
+
         # Max and min level
         setattr(
             model, f"{self.handle}::storage_constraint",
@@ -155,53 +184,6 @@ class Store(Asset):
                 rule = (
                     lambda m, t: self.installed_capacity + capex - level[t] >= 0
                     )
-                )
-            )
-
-        # Ramp rate
-        def ramp_rate_rule_upper(m, t):
-
-            if t == 0:
-
-                rule = (0, level[t], np.inf)
-
-            else:
-
-                rule = (
-                    level[t] - level[t - 1] <=
-                    self.ramp_rate * (self.installed_capacity + capex)
-                    )
-
-            return rule
-
-        setattr(
-            model, f"{self.handle}::ramp_rate_upper_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = lambda m, t: ramp_rate_rule_upper(m, t),
-                )
-            )
-
-        def ramp_rate_rule_lower(m, t):
-
-            if t == 0:
-
-                rule = (0, level[t], np.inf)
-
-            else:
-
-                rule = (
-                    level[t] - level[t - 1] >=
-                    -self.ramp_rate * (self.installed_capacity + capex)
-                    )
-
-            return rule
-
-        setattr(
-            model, f"{self.handle}::ramp_rate_lower_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = lambda m, t: ramp_rate_rule_lower(m, t),
                 )
             )
 
@@ -225,6 +207,8 @@ class Store(Asset):
 
     def energy(self, model, step = None):
 
+        # print(self.handle)
+
         production = getattr(model, f"{self.handle}::production")
         consumption = getattr(model, f"{self.handle}::consumption")
         efficiency = self.efficiency
@@ -232,13 +216,20 @@ class Store(Asset):
         if step is None:
 
             energy = pyomo.quicksum(
-                production[i] * efficiency - consumption[i] / efficiency
+                production[i] * efficiency * model.time_step -
+                consumption[i] / efficiency * model.time_step
                 for i in model.steps
             )
 
         else:
 
-            energy = production[step] * efficiency - consumption[step] / efficiency
+            energy = (
+                production[step] * efficiency * model.time_step -
+                consumption[step] / efficiency * model.time_step
+                )
+            # energy = production[step] * efficiency
+
+            # print(energy)
 
         return energy
 

@@ -100,6 +100,9 @@ class Region(Node):
                 for export_edge in self.exports
                 )
 
+            # imported_energy = 0
+            # exported_energy = 0
+
             shortfall = getattr(model, f"{self.handle}::shortfall")[step]
             wastage = getattr(model, f"{self.handle}::wastage")[step]
             
