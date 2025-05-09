@@ -1,15 +1,18 @@
+import numpy as np
 import pyomo.environ as pyomo
 
-class Edge:
+class Line:
+    '''
+    Super-class for all grid assets. An asset is subordinate to a region and the output
+    of all assets must sum to zero for any region at all time steps.
+    '''
 
-    __base__ = 'Edge'
+    __base__ = 'Line'
 
     def __init__(self, handle, **kwargs):
 
         self.handle = handle
         self.handles = []
-
-        self.lines = {}
 
     def parameters(self, model):
 
@@ -23,10 +26,22 @@ class Edge:
 
         return model
 
+    def transmit(self, model, step = None):
+
+        return 0.  # Transmits energy from source to target
+
+    def receive(self, model, step = None):
+
+        return 0.  # Transmits energy from source to target
+
+    def capacity(self, model, step = None):
+
+        return 0
+
     def objective(self, model):
         """Base objective function returns zero cost"""
-
-        return 0.  # Default to no cost for nodes
+        
+        return 0.  # Default to no cost for assets
 
     def solution(self, model):
 

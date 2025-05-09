@@ -43,15 +43,6 @@ class Asset:
 
         return 0.  # Default to no cost for assets
 
-    def results(self, model, results):
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            results[handle] = value
-
-        return results
-
     def solution(self, model):
 
         solution = {}

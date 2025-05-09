@@ -45,9 +45,6 @@ class Load(Asset):
 
             self.profile = [0] * len(model.steps)
 
-        # print(self.handle, self.profile[:25])
-        # model.start.pprint()
-
         handle = f"{self.handle}::profile"
         self.handles.append(handle)
         setattr(
@@ -135,7 +132,6 @@ class Load(Asset):
                     )
                 )
 
-            # print(np.arange(model.steps.at(1), model.steps.at(-1)))
             for start in np.arange(
                 model.steps.at(1), model.steps.at(-1), self.shift_window
                 ):
@@ -220,32 +216,6 @@ class Load(Asset):
         cost = shift_cost + expansion_cost
 
         return cost
-
-    def results(self, model, results):
-
-        local_results = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            local_results[handle.split('::')[1]] = value
-
-        # Net Contribution
-        profile = list(
-            getattr(model, f"{self.handle}::profile").extract_values().values()
-            )
-        shift = list(getattr(model, f"{self.handle}::shift").extract_values().values())
-        capex = list(getattr(model, f"{self.handle}::capex").extract_values().values())
-
-        capacity = self.installed_capacity + capex[0]
-
-        local_results["net"] = (
-            [(profile[i] + shift[i]) * capacity for i in model.steps]
-            )
-
-        results[self.handle] = local_results
-
-        return results
 
     def solution(self, model):
 

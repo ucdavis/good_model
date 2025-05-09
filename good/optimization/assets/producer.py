@@ -223,26 +223,6 @@ class Producer(Asset):
         
         return cost
 
-    def results(self, model, results):
-
-        local_results = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            local_results[handle.split('::')[1]] = value
-
-        # Net Contribution
-        production = list(
-            getattr(model, f"{self.handle}::production").extract_values().values()
-            )
-
-        local_results["net"] = production
-
-        results[self.handle] = local_results
-
-        return results
-
     def solution(self, model):
 
         solution = {}

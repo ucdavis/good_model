@@ -9,6 +9,8 @@ class Node:
         self.handle = handle
         self.handles = []
 
+        self.assets = {}
+
     def parameters(self, model):
 
         return model
@@ -26,10 +28,13 @@ class Node:
 
         return 0.  # Default to no cost for nodes
 
-    def results(self, model, results):
-
-        return results
-
     def solution(self, model):
 
-        return {}
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle] = value
+
+        return solution 

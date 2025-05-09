@@ -90,14 +90,18 @@ class Region(Node):
                 asset['object'].energy(model, step) for asset in self.assets.values()
             )
 
+            # print(self.imports.keys())
+
             imported_energy = sum(
-                import_edge['object'].receive(model, step) \
-                for import_edge in self.imports.values()
+                import_line['object'].receive(model, step) \
+                for import_edge in self.imports.values() \
+                for import_line in import_edge['object'].lines.values()
                 )
 
             exported_energy = sum(
-                export_edge['object'].transmit(model, step) \
-                for export_edge in self.exports.values()
+                export_line['object'].transmit(model, step) \
+                for export_edge in self.exports.values() \
+                for export_line in export_edge['object'].lines.values()
                 )
 
             shortfall = getattr(model, f"{self.handle}::shortfall")[step]
@@ -125,13 +129,15 @@ class Region(Node):
             )
 
         imports_cost = sum(
-            import_edge['object'].objective(model) for \
-            import_edge in self.imports.values()
+            import_line['object'].objective(model) \
+            for import_edge in self.imports.values() \
+            for import_line in import_edge['object'].lines.values()
             )
 
         exports_cost = sum(
-            export_edge['object'].objective(model) for \
-            export_edge in self.exports.values()
+            export_line['object'].objective(model) \
+            for export_edge in self.exports.values() \
+            for export_line in export_edge['object'].lines.values()
             )
 
         shortfall_cost = sum(
@@ -148,37 +154,6 @@ class Region(Node):
 
         return cost
 
-    def results(self, model, results):
-
-        local_results = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            local_results[handle.split('::')[1]] = value
-
-        local_results['assets'] = {}
-
-        for asset in self.assets.values():
-
-            local_results['assets'] = asset['object'].results(
-                model, local_results['assets']
-                )
-
-        if hasattr(model, 'dual'):
-
-            handle = f"{self.handle}::balance"
-
-            duals = {str(k): model.dual[k] for k in model.dual.keys()}
-
-            local_results['clearing_price'] = (
-                [v for k, v in duals.items() if handle in k]
-                )
-
-        results[self.handle] = local_results
-
-        return results
-
     def solution(self, model):
 
         solution = {}
@@ -187,12 +162,6 @@ class Region(Node):
 
             value = list(getattr(model, handle).extract_values().values())
             solution[handle.split('::')[1]] = value
-
-        # solution['assets'] = {}
-
-        # for key, asset in self.assets.items():
-
-        #     solution['assets'][key] = asset['object'].solution(model)
 
         if hasattr(model, 'dual'):
 

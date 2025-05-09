@@ -1,3 +1,3 @@
-from .line import Line
+from .link import Link
 
-__all__ = ['Line'] 
+__all__ = ['Link'] 

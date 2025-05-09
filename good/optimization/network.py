@@ -1,3 +1,5 @@
+__all__ = ['Network']
+
 import time
 
 import numpy as np
@@ -8,23 +10,11 @@ import pyomo.util.model_size as model_size
 
 from copy import deepcopy
 
-from .base import *
-from .buses import *
-from .assets import *
-from .edges import *
-from .policies import *
-from .exceptions import *
+from . import *
+members = dir()
 
 from ..utilities import cprint
 from ..graph import remove_self_edges
-
-default_classes = [
-    'Region', 'Producer', 'Load', 'Store', 'Line',
-    'Portfolio_Standard', 'Capacity_Target', 'Reserve_Margin'
-]
-base_classes = ['Node', 'Edge', 'Asset', 'Policy']
-
-# Network class
 
 class Network:
 
@@ -42,6 +32,7 @@ class Network:
 
         self.graph = nx.DiGraph()
         self.assets = {}
+        self.lines = {}
         self.policies = {}
 
     def size(self):
@@ -63,9 +54,7 @@ class Network:
 
             solution_node['assets'] = {}
 
-            # print(source, node['object'].assets.keys())
-
-            for key, asset in node['object'].assets.items():
+            for key, asset in node['assets'].items():
 
                 solution = asset['object'].solution(self.model)
 
@@ -82,6 +71,16 @@ class Network:
                 solution_edge = {
                     **solution, **{k: v for k, v in edge.items() if k != 'object'}
                 }
+
+                solution_edge['lines'] = {}
+
+                for key, line in edge['lines'].items():
+
+                    solution = line['object'].solution(self.model)
+
+                    solution_edge['lines'][key] = {
+                        **solution, **{k: v for k, v in line.items() if k != 'object'}
+                        }
 
                 edges.append((source, target, solution_edge))
 
@@ -281,7 +280,7 @@ class Network:
             _class = node.pop('_class')
             profiles = node.pop('profiles', {})
 
-            assets = node.pop('assets', {})
+            assets = node.get('assets', {})
 
             self.add(_class, source, **node)
 
@@ -289,7 +288,7 @@ class Network:
 
                 _class = asset.pop('_class')
 
-                asset['region'] = source
+                asset['node'] = source
 
                 if isinstance(asset.get('profile', ''), str):
 
@@ -305,7 +304,17 @@ class Network:
                 edge['source'] = source
                 edge['target'] = target
 
+                lines = edge.get('lines', {})
+
                 self.add(_class, f"{source}_{target}", **edge)
+
+                for key, line in lines.items():
+
+                    _class = line.pop('_class')
+
+                    line['edge'] = (source, target)
+
+                    self.add(_class, key, **line)
 
         for key, policy in policies.items():
 
@@ -323,7 +332,7 @@ class Network:
 
         # Processing class
         if isinstance(_class, str):
-            if _class in default_classes:
+            if _class in members:
 
                 _class = eval(_class)
 
@@ -349,49 +358,67 @@ class Network:
 
         elif _base is Asset:
 
-            region = kwargs.pop('region', None)
+            node = kwargs.pop('node', '')
 
             # Add an asset
-            self.add_asset(_class, handle, region, **kwargs)
+            self.add_asset(_class, handle, node, **kwargs)
+
+        elif _base is Line:
+
+            edge = kwargs.pop('edge', ('', ''))
+
+            # Add a line
+            self.add_line(_class, handle, edge, **kwargs)
 
         elif _base is Policy:
 
-            # Add an asset
+            # Add an policy
             self.add_policy(_class, handle, **kwargs)
 
         else:
 
             raise GOOD_InvalidBaseClass
 
-    def add_asset(self, _class, handle, region, **kwargs):
+    def add_asset(self, _class, handle, node, **kwargs):
 
         kwargs['object'] = _class(handle, **kwargs)
 
         # Checking for node
-        if region not in self.graph.nodes:
+        if node not in self.graph.nodes:
 
-            raise GOOD_NodeNotFound(region)
+            raise GOOD_NodeNotFound(node)
 
         self.assets[handle] = kwargs
 
-        self.graph._node[region]['object'].assets[handle] = kwargs
+        self.graph._node[node]['object'].assets[handle] = kwargs
 
-    def add_policy(self, _class, handle, **kwargs):
-
-        # print('s')
+    def add_line(self, _class, handle, edge, **kwargs):
 
         kwargs['object'] = _class(handle, **kwargs)
 
-        # print(self.graph._node['object'])
+        # Checking for node
+        if edge not in self.graph.edges:
+
+            raise GOOD_EdgeNotFound(edges)
+
+        self.lines[handle] = kwargs
+
+        self.graph._adj[edge[0]][edge[1]]['object'].lines[handle] = kwargs
+
+    def add_policy(self, _class, handle, **kwargs):
+
+        kwargs['object'] = _class(handle, **kwargs)
 
         self.policies[handle] = kwargs
 
     def add_node(self, _class, handle, **kwargs):
 
-        self.graph.add_node(handle, object = _class(handle, **kwargs), **kwargs)
+        obj = _class(handle, **kwargs)
+
+        self.graph.add_node(handle, object = obj, **kwargs)
 
     def add_edge(self, _class, handle, source, target, **kwargs):
 
-        edge_obj = _class(handle, **kwargs)
+        obj = _class(handle, **kwargs)
 
-        self.graph.add_edge(source, target, object = edge_obj, **kwargs)
+        self.graph.add_edge(source, target, object = obj, **kwargs)
