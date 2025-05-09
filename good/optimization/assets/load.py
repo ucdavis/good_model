@@ -174,6 +174,26 @@ class Load(Asset):
 
         return energy
 
+    def power(self, model, step = None):
+
+        profile = getattr(model, f"{self.handle}::profile")
+        shift = getattr(model, f"{self.handle}::shift")
+        capex = getattr(model, f"{self.handle}::capex")
+
+        capacity = self.installed_capacity + capex
+        
+        if step is None:
+
+            power = pyomo.quicksum(
+                (profile[t] + shift[t]) * capacity for t in model.steps
+                )
+
+        else:
+
+            power = (profile[step] + shift[step]) * capacity
+
+        return power
+
     def capacity(self, model, step = None):
 
         capex = getattr(model, f"{self.handle}::capex")
@@ -226,3 +246,27 @@ class Load(Asset):
         results[self.handle] = local_results
 
         return results
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle.split('::')[1]] = value
+
+        # Net Contribution
+        profile = list(
+            getattr(model, f"{self.handle}::profile").extract_values().values()
+            )
+        shift = list(getattr(model, f"{self.handle}::shift").extract_values().values())
+        capex = list(getattr(model, f"{self.handle}::capex").extract_values().values())
+
+        capacity = self.installed_capacity + capex[0]
+
+        solution["net"] = (
+            [(profile[i] + shift[i]) * capacity for i in model.steps]
+            )
+
+        return solution

@@ -8,17 +8,20 @@ import pyomo.util.model_size as model_size
 
 from copy import deepcopy
 
-from .base import Node, Edge, Asset, Policy
-from .buses import Region
-from .assets import Producer, Load, Store
-from .edges import Line
-from .policies import RPS
+from .base import *
+from .buses import *
+from .assets import *
+from .edges import *
+from .policies import *
 from .exceptions import *
 
 from ..utilities import cprint
 from ..graph import remove_self_edges
 
-default_classes = ['Region', 'Producer', 'Load', 'Store', 'Line', 'RPS']
+default_classes = [
+    'Region', 'Producer', 'Load', 'Store', 'Line',
+    'Portfolio_Standard', 'Capacity_Target', 'Reserve_Margin'
+]
 base_classes = ['Node', 'Edge', 'Asset', 'Policy']
 
 # Network class
@@ -38,39 +41,53 @@ class Network:
         self.wastage_cost = kwargs.get('wastage_cost', None)
 
         self.graph = nx.DiGraph()
-        self.assets = []
-        self.policies = []
+        self.assets = {}
+        self.policies = {}
 
     def size(self):
 
         return model_size.build_model_size_report(self.model)
 
-    # def build_solution(self):
+    def build_solution(self):
 
-    #     nodes = []
-    #     edges = []
+        nodes = []
+        edges = []
 
-    #     for source, node in self.graph._node.items():
+        for source, node in self.graph._node.items():
 
-    #         # for asset in node.assets:
+            solution = node['object'].solution(self.model)
 
-    #         #     asset_results = asset['object'].results(self.model)
-    #         #     asset = {**asset, **asset_results}
+            solution_node = {
+                **solution, **{k: v for k, v in node.items() if k != 'object'}
+                }
 
-    #         node_results = node['object'].results(self.model)
+            solution_node['assets'] = {}
 
-    #         nodes.append((source, {**node, **node_results}))
+            # print(source, node['object'].assets.keys())
 
-    #         for target, edge in self.graph._adj[source].items():
+            for key, asset in node['object'].assets.items():
 
-    #             edge_results = edge['object'].results(self.model)
+                solution = asset['object'].solution(self.model)
 
-    #             edges.append((source, target, {**edge, **edge_results}))
+                solution_node['assets'][key] = {
+                    **solution, **{k: v for k, v in asset.items() if k != 'object'}
+                    }
 
+            nodes.append((source, solution_node))
 
-    #     self.solution = nx.DiGraph()
-    #     self.solution.add_nodes_from(nodes)
-    #     self.solution.add_edges_from(edges)
+            for target, edge in self.graph._adj[source].items():
+
+                solution = edge['object'].solution(self.model)
+
+                solution_edge = {
+                    **solution, **{k: v for k, v in edge.items() if k != 'object'}
+                }
+
+                edges.append((source, target, solution_edge))
+
+        self.solution = self.graph.__class__()
+        self.solution.add_nodes_from(nodes)
+        self.solution.add_edges_from(edges)
 
     def collect_results(self):
 
@@ -107,8 +124,8 @@ class Network:
 
         # Making solution dictionary
         t0 = time.time()
-        self.collect_results()
-        # self.build_solution()
+        # self.collect_results()
+        self.build_solution()
         cprint(f'Results Collected: {time.time() - t0}', self.verbose)
 
     def build(self):
@@ -119,12 +136,17 @@ class Network:
         self.model.steps = pyomo.Set(
             initialize = list(range(self.steps[1] - self.steps[0]))
             )
-        self.model.start = pyomo.Param(initialize = self.steps[0], domain = pyomo.Integers)
-        self.model.stop = pyomo.Param(initialize = self.steps[-1], domain = pyomo.Integers)
+
+        self.model.start = pyomo.Param(
+            initialize = self.steps[0], domain = pyomo.Integers
+            )
+
+        self.model.stop = pyomo.Param(
+            initialize = self.steps[-1], domain = pyomo.Integers
+            )
+
         self.model.time_step = pyomo.Param(initialize = self.time_step)
         # self.model.total_time = len(self.model.steps) * self.model.time_step
-
-        # self.model.steps.pprint()
 
         # t0 = time.time()
         self.feasibility_parameters()
@@ -171,8 +193,8 @@ class Network:
 
         for source, node in self.graph._node.items():
 
-            node['imports'] = []
-            node['exports'] = []
+            node['imports'] = {}
+            node['exports'] = {}
 
         for source, _adj in self.graph._adj.items():
 
@@ -182,8 +204,8 @@ class Network:
 
                 target_node = self.graph._node[target]
 
-                source_node['object'].imports.append(edge)
-                target_node['object'].exports.append(edge)
+                source_node['object'].exports[target] = edge
+                target_node['object'].imports[source] = edge
 
     def build_objective(self):
 
@@ -197,7 +219,7 @@ class Network:
 
                 cost += edge['object'].objective(self.model)
 
-        for policy in self.policies:
+        for policy in self.policies.values():
 
             cost += policy['object'].objective(self.model)
 
@@ -215,7 +237,7 @@ class Network:
 
                 self.model = edge['object'].constraints(self.model)
 
-        for policy in self.policies:
+        for policy in self.policies.values():
 
             self.model = policy['object'].constraints(self.model)
 
@@ -229,7 +251,7 @@ class Network:
 
                 self.model = edge['object'].variables(self.model)
 
-        for policy in self.policies:
+        for policy in self.policies.values():
 
             self.model = policy['object'].variables(self.model)
 
@@ -243,11 +265,11 @@ class Network:
 
                 self.model = edge['object'].parameters(self.model)
 
-        for policy in self.policies:
+        for policy in self.policies.values():
 
             self.model = policy['object'].parameters(self.model)
 
-    def from_graph(self, graph, policies = []):
+    def from_graph(self, graph = nx.DiGraph(), policies = {}, **kwargs):
 
         graph = deepcopy(graph)
         policies = deepcopy(policies)
@@ -259,11 +281,11 @@ class Network:
             _class = node.pop('_class')
             profiles = node.pop('profiles', {})
 
-            assets = node.pop('assets', [])
+            assets = node.pop('assets', {})
 
             self.add(_class, source, **node)
 
-            for asset in assets:
+            for key, asset in assets.items():
 
                 _class = asset.pop('_class')
 
@@ -273,7 +295,7 @@ class Network:
 
                     asset['profile'] = profiles.get(asset['profile'], None)
 
-                self.add(_class, asset['id'], **asset)
+                self.add(_class, key, **asset)
 
         for source, _adj in graph._adj.items():
             for target, edge in _adj.items():
@@ -285,14 +307,12 @@ class Network:
 
                 self.add(_class, f"{source}_{target}", **edge)
 
-        for policy in policies:
-
-            # print(policy)
+        for key, policy in policies.items():
 
             _class = policy.pop('_class')
             policy['assets'] = self.assets
 
-            self.add(_class, policy['id'], **policy)
+            self.add(_class, key, **policy)
 
         return self
 
@@ -352,9 +372,9 @@ class Network:
 
             raise GOOD_NodeNotFound(region)
 
-        self.assets.append(kwargs)
+        self.assets[handle] = kwargs
 
-        self.graph._node[region]['object'].assets.append(kwargs)
+        self.graph._node[region]['object'].assets[handle] = kwargs
 
     def add_policy(self, _class, handle, **kwargs):
 
@@ -364,7 +384,7 @@ class Network:
 
         # print(self.graph._node['object'])
 
-        self.policies.append(kwargs)
+        self.policies[handle] = kwargs
 
     def add_node(self, _class, handle, **kwargs):
 

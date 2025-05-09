@@ -34,6 +34,10 @@ class Edge:
 
         return 0.  # Transmits energy from source to target
 
+    def capacity(self, model, step = None):
+
+        return 0
+
     def objective(self, model):
         """Base objective function returns zero cost"""
         
@@ -46,4 +50,15 @@ class Edge:
             value = list(getattr(model, handle).extract_values().values())
             results[handle] = value
 
-        return results 
+        return results
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle] = value
+
+        return solution 

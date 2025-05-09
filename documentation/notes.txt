@@ -1,0 +1,10 @@
+Egrid is an EPA reporting program from all power plants in country
+some cleaning and valdidation
+some generators are excepmt or fill out a differnt form (grandfathering)
+same as EIA reporting forms
+
+EIA and EPA process differently but ORIS codes are used to match
+
+IPM is a different thing in EPA and we really only use it for fuel prices + cost class/resource class - done in collaboration with NREL?
+
+We get transmission data from IPM - Alan is uncertain here

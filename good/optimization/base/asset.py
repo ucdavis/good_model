@@ -30,6 +30,10 @@ class Asset:
 
         return 0.  # Default to no energy contribution
 
+    def power(self, model, step = None):
+
+        return 0.  # Default to no power contribution
+
     def capacity(self, model, step = None):
 
         return 0.
@@ -46,4 +50,15 @@ class Asset:
             value = list(getattr(model, handle).extract_values().values())
             results[handle] = value
 
-        return results 
+        return results
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle] = value
+
+        return solution 

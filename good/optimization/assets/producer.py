@@ -182,6 +182,22 @@ class Producer(Asset):
 
         return energy
 
+    def power(self, model, step = None):
+
+        production = getattr(model, f"{self.handle}::production")
+
+        if step is None:
+
+            power = pyomo.quicksum(
+                production[i] for i in model.steps
+            )
+
+        else:
+
+            power = production[step]
+
+        return power
+
     def capacity(self, model, step = None):
 
         capex = getattr(model, f"{self.handle}::capex")
@@ -226,3 +242,21 @@ class Producer(Asset):
         results[self.handle] = local_results
 
         return results
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle.split('::')[1]] = value
+
+        # Net Contribution
+        production = list(
+            getattr(model, f"{self.handle}::production").extract_values().values()
+            )
+
+        solution["net"] = production
+
+        return solution

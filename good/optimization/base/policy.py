@@ -39,4 +39,15 @@ class Policy:
             value = list(getattr(model, handle).extract_values().values())
             results[handle] = value
 
-        return results 
+        return results
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle] = value
+
+        return solution 

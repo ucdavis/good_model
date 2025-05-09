@@ -29,3 +29,7 @@ class Node:
     def results(self, model, results):
 
         return results
+
+    def solution(self, model):
+
+        return {}

@@ -1,0 +1,18 @@
+{
+    "policy_2": {
+        "_class": "Portfolio_Standard",
+        "ratio": 0.45,
+        "inclusion_criteria": {
+            "0": "lambda a: a.get('renewable', True)",
+            "1": "lambda a: a.get('_class', '') != 'Store'",
+            "2": "lambda a: a.get('type', '') != 'load'",
+            "3": "lambda a: a.get('jurisdiction', '') == 'CA'"
+        },
+        "exclusion_criteria": {
+            "0": "lambda a: not a.get('renewable', False)",
+            "1": "lambda a: a.get('_class', '') != 'Store'",
+            "2": "lambda a: a.get('type', '') != 'load'",
+            "3": "lambda a: a.get('jurisdiction', '') == 'CA'"
+        }
+    }
+}

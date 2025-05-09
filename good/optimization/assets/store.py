@@ -17,8 +17,6 @@ class Store(Asset):
         self.consumption_rate = kwargs.get('consumption_rate', 1)
         self.initial = kwargs.get('initial', 0)
 
-        # print(self.efficiency)
-
         # Can capacity be expanded
         self.capex_capacity = kwargs.get('capex_capacity', 0)
         self.capex_cost = kwargs.get('capex_cost', 0)
@@ -207,8 +205,6 @@ class Store(Asset):
 
     def energy(self, model, step = None):
 
-        # print(self.handle)
-
         production = getattr(model, f"{self.handle}::production")
         consumption = getattr(model, f"{self.handle}::consumption")
         efficiency = self.efficiency
@@ -227,11 +223,31 @@ class Store(Asset):
                 production[step] * efficiency * model.time_step -
                 consumption[step] / efficiency * model.time_step
                 )
-            # energy = production[step] * efficiency
-
-            # print(energy)
 
         return energy
+
+    def power(self, model, step = None):
+
+        production = getattr(model, f"{self.handle}::production")
+        consumption = getattr(model, f"{self.handle}::consumption")
+        efficiency = self.efficiency
+
+        if step is None:
+
+            power = pyomo.quicksum(
+                production[i] * efficiency -
+                consumption[i] / efficiency
+                for i in model.steps
+            )
+
+        else:
+
+            power = (
+                production[step] * efficiency -
+                consumption[step] / efficiency
+                )
+
+        return power
 
     def capacity(self, model, step = None):
 
@@ -269,3 +285,30 @@ class Store(Asset):
         results[self.handle] = local_results
 
         return results
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle.split('::')[1]] = value
+
+        # Net Contribution
+        production = list(
+            getattr(model, f"{self.handle}::production").extract_values().values()
+            )
+
+        consumption = list(
+            getattr(model, f"{self.handle}::consumption").extract_values().values()
+            )
+
+        efficiency = self.efficiency
+
+        solution["net"] = (
+            [production[i] * efficiency - consumption[i] / efficiency \
+            for i in model.steps]
+            )
+
+        return solution
