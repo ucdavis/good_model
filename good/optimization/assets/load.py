@@ -211,7 +211,7 @@ class Load(Asset):
             for t in model.steps
             )
 
-        expansion_cost = capex * self.capex_cost
+        expansion_cost = capex * self.capex_cost * model.amortization
 
         cost = shift_cost + expansion_cost
 

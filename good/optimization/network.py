@@ -23,6 +23,7 @@ class Network:
         self.verbose = kwargs.get('verbose', False)
         self.steps = kwargs.get('steps', (0, 1))
         self.time_step = kwargs.get('time_step', 3600.) # [s]
+        self.amortization_period = kwargs.get('amortization_period', 31536000) # [s]
 
         self.shortfall_capacity = kwargs.get('shortfall_capacity', None)
         self.shortfall_cost = kwargs.get('shortfall_cost', None)
@@ -145,6 +146,14 @@ class Network:
             )
 
         self.model.time_step = pyomo.Param(initialize = self.time_step)
+
+        duration = len(self.model.steps) * self.model.time_step
+
+        amortization = duration / self.amortization_period
+
+        self.model.amortization = pyomo.Param(
+            initialize = amortization
+            )
         # self.model.total_time = len(self.model.steps) * self.model.time_step
 
         # t0 = time.time()
@@ -292,7 +301,7 @@ class Network:
 
                 if isinstance(asset.get('profile', ''), str):
 
-                    asset['profile'] = profiles.get(asset['profile'], None)
+                    asset['profile'] = profiles.get(asset.get('profile', ''), None)
 
                 self.add(_class, key, **asset)
 

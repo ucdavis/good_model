@@ -131,7 +131,7 @@ class Transmission(Line):
 
         capex = getattr(model, f"{self.handle}::capex")
 
-        expansion_cost = capex * self.capex_cost
+        expansion_cost = capex * self.capex_cost * model.amortization
 
         cost = transmission_cost + expansion_cost
 
