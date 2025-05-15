@@ -265,6 +265,60 @@ def plot_generation_by_fuel(ax, solution):
 
     return ax
 
+def plot_capex_by_type(ax, solution):
+
+    capex_amounts = {}
+
+    for source, node in solution._node.items():
+
+        for handle, asset in node['assets'].items():
+
+            if asset['type'] not in capex_amounts:
+
+                capex_amounts[asset['type']] = (
+                    [node['assets'][handle]['capex']]
+                )
+
+            else:
+
+                capex_amounts[asset['type']].append(
+                    [node['assets'][handle]['capex']]
+                )
+
+    for key, val in capex_amounts.items():
+
+        capex_amounts[key] = np.vstack(val).sum(axis = 0)[0] / 1e9
+
+    capex_amounts['battery'] /= (4 * 3600)
+
+    kw = {
+        'color': 'xkcd:seafoam',
+        'ec': 'k',
+    }
+
+    ax.barh(list(capex_amounts.keys()), list(capex_amounts.values()), **kw)
+
+    kw = {
+        'facecolor': 'whitesmoke',
+        'xlabel': 'Capacity Expansion [GW]',
+    }
+
+    _ = ax.set(**kw)
+
+    kw = {
+        'ls': '--',
+    }
+
+    _ = ax.grid(**kw)
+
+    kw = {
+        'fontsize': 'x-small',
+    }
+
+    _ = ax.legend(**kw)
+
+    return ax
+
 def plot_capex_by_fuel(ax, solution):
 
     capex_amounts = {}
