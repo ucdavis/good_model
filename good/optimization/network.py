@@ -89,6 +89,18 @@ class Network:
         self.solution.add_nodes_from(nodes)
         self.solution.add_edges_from(edges)
 
+    def build_results(self):
+
+        self.results = {}
+
+        for source, node in self.solution._node.items():
+
+            for key, value in node.items():
+
+                if isinstance(value, (list, np.array)):
+
+                    self.results[f"{source}::{key}"] = value
+
     def collect_results(self):
 
         self.results = {}
