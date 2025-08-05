@@ -136,3 +136,14 @@ class Transmission(Line):
         cost = transmission_cost + expansion_cost
 
         return cost
+
+    def solution(self, model):
+
+        solution = {}
+
+        for handle in self.handles:
+
+            value = list(getattr(model, handle).extract_values().values())
+            solution[handle.split('::')[1]] = value
+
+        return solution

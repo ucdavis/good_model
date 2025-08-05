@@ -3,6 +3,7 @@ __all__ = ['Network']
 import time
 
 import numpy as np
+import pandas as pd
 import networkx as nx
 import pyomo.environ as pyomo
 import pyomo.opt as opt
@@ -40,7 +41,7 @@ class Network:
 
         return model_size.build_model_size_report(self.model)
 
-    def build_solution(self):
+    def build_solution_full(self):
 
         nodes = []
         edges = []
@@ -88,34 +89,127 @@ class Network:
         self.solution = self.graph.__class__()
         self.solution.add_nodes_from(nodes)
         self.solution.add_edges_from(edges)
+    
+    def solution_graph(self):
 
-    def build_results(self):
+        t0 = time.time()
 
-        self.results = {}
-
-        for source, node in self.solution._node.items():
-
-            for key, value in node.items():
-
-                if isinstance(value, (list, np.array)):
-
-                    self.results[f"{source}::{key}"] = value
-
-    def collect_results(self):
-
-        self.results = {}
+        nodes = []
+        edges = []
 
         for source, node in self.graph._node.items():
 
-            self.results = node['object'].results(self.model, self.results)
+            solution = node['object'].solution(self.model)
 
-            edge_results = {}
+            solution_node = solution
+
+            solution_node['assets'] = {}
+
+            for key, asset in node['assets'].items():
+
+                solution = asset['object'].solution(self.model)
+
+                solution_node['assets'][key] = solution
+
+            nodes.append((source, solution_node))
 
             for target, edge in self.graph._adj[source].items():
 
-                edge_results = edge['object'].results(self.model, edge_results)
+                solution = edge['object'].solution(self.model)
 
-            self.results[source]['edges'] = edge_results
+                solution_edge = solution
+
+                solution_edge['lines'] = {}
+
+                for key, line in edge['lines'].items():
+
+                    solution = line['object'].solution(self.model)
+
+                    solution_edge['lines'][key] = solution
+
+                edges.append((source, target, solution_edge))
+
+        solution = self.graph.__class__()
+        solution.add_nodes_from(nodes)
+        solution.add_edges_from(edges)
+
+        cprint(f'Solution Graph Built: {time.time() - t0}', self.verbose)
+
+        return solution
+
+    def solution_dataframe(self, solution = None):
+
+        t0 = time.time()
+
+        if solution == None:
+
+            solution = self.solution_graph()
+
+        columns = {}
+
+        for source, node in solution._node.items():
+
+            _adj = solution._adj[source]
+
+            node_columns = {}
+
+            for key, value in node.items():
+
+                if type(value) == list:
+
+                    node_columns[f'{source}::{key}'] = value
+
+            columns = {**columns, **node_columns}
+
+            for handle, asset in node['assets'].items():
+
+                asset_columns = {}
+
+                for key, value in asset.items():
+        
+                    if type(value) == list:
+        
+                        asset_columns[f'{source}:{handle}::{key}'] = value
+        
+                columns = {**columns, **asset_columns}
+
+            for target, edge in _adj.items():
+
+                edge_columns = {}
+
+                for key, value in edge.items():
+        
+                    if type(value) == list:
+        
+                        edge_columns[f'{source}:{target}::{key}'] = value
+        
+                columns = {**columns, **edge_columns}
+            
+                for handle, line in edge['lines'].items():
+
+                    line_columns = {}
+        
+                    for key, value in line.items():
+        
+                        if type(value) == list:
+            
+                            line_columns[f'{source}:{target}:{handle}::{key}'] = value
+            
+                    columns = {**columns, **line_columns}
+
+        time_steps = max([len(v) for k, v in columns.items()])
+
+        for key, value in columns.items():
+
+            if len(value) == 1:
+
+                columns[key] = value + [0] * (time_steps - 1)
+
+        df = pd.DataFrame.from_dict(columns)
+
+        cprint(f'Solution DataFrame Built: {time.time() - t0}', self.verbose)
+
+        return df
 
     def solve(self, **kwargs):
 
@@ -133,12 +227,6 @@ class Network:
         t0 = time.time()
         self.result = solver.solve(self.model, tee = tee)
         cprint(f'Problem Solved: {time.time() - t0}', self.verbose)
-
-        # Making solution dictionary
-        t0 = time.time()
-        # self.collect_results()
-        self.build_solution()
-        cprint(f'Results Collected: {time.time() - t0}', self.verbose)
 
     def build(self):
 
