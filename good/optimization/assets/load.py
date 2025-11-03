@@ -24,8 +24,8 @@ class Load(Asset):
         self.capex_cost = kwargs.get('capex_cost', 0)
         self.extensible = self.capex_capacity > 0
 
-        self.shift_portion = kwargs.get('shift_portion', 0)
-        self.shiftable = self.shift_portion > 0
+        self.shift_capacity = kwargs.get('shift_capacity', 0)
+        self.shiftable = self.shift_capacity > 0
 
         self.shift_window = kwargs.get('shift_window', None)
 
@@ -71,7 +71,7 @@ class Load(Asset):
             setattr(
                 model, handle,
                 pyomo.Param(
-                    model.steps, initialize = [0] * len(model.steps)
+                    model.steps, initialize = [0] * len(model.steps),
                     )
                 )
 
@@ -101,7 +101,8 @@ class Load(Asset):
                 pyomo.Var(
                     model.steps,
                     initialize = [0] * len(model.steps), 
-                    within = pyomo.Reals
+                    within = pyomo.Reals,
+                    bounds = (-self.shift_capacity, self.shift_capacity)
                     ),
                 )
 
@@ -113,24 +114,9 @@ class Load(Asset):
 
             profile = getattr(model, f"{self.handle}::profile")
             shift = getattr(model, f"{self.handle}::shift")
+            capex = getattr(model, f"{self.handle}::capex")
 
-            def shift_portion_rule(m, t):
-
-                rule = (
-                    -self.shift_portion * profile[t],
-                    shift[t],
-                    self.shift_portion * profile[t],
-                    )
-
-                return rule
-
-            setattr(
-                model, f"{self.handle}::shift_portion_constraint",
-                pyomo.Constraint(
-                    model.steps,
-                    rule = lambda m, t: shift_portion_rule(m, t),
-                    )
-                )
+            capacity = self.installed_capacity + capex
 
             for start in np.arange(
                 model.steps.at(1), model.steps.at(-1), self.shift_window
@@ -161,12 +147,12 @@ class Load(Asset):
         if step is None:
 
             energy = pyomo.quicksum(
-                (profile[t] + shift[t]) * model.time_step * capacity for t in model.steps
+                profile[t] * model.time_step * capacity + shift[t] for t in model.steps
                 )
 
         else:
-
-            energy = (profile[step] + shift[step]) * model.time_step * capacity
+ 
+            energy = profile[step] * model.time_step * capacity + shift[step]
 
         return energy
 
@@ -181,12 +167,12 @@ class Load(Asset):
         if step is None:
 
             power = pyomo.quicksum(
-                (profile[t] + shift[t]) * capacity for t in model.steps
+                profile[t] * capacity + shift[t] for t in model.steps
                 )
 
         else:
 
-            power = (profile[step] + shift[step]) * capacity
+            power = profile[step] * capacity + shift[step]
 
         return power
 
@@ -205,15 +191,10 @@ class Load(Asset):
         capex = getattr(model, f"{self.handle}::capex")
 
         capacity = self.installed_capacity + capex
-        
-        shift_cost = pyomo.quicksum(
-            shift[t] * model.time_step * capacity * self.operating_cost \
-            for t in model.steps
-            )
 
         expansion_cost = capex * self.capex_cost * model.amortization
 
-        cost = shift_cost + expansion_cost
+        cost = expansion_cost
 
         return cost
 
@@ -236,7 +217,7 @@ class Load(Asset):
         capacity = self.installed_capacity + capex[0]
 
         solution["net"] = (
-            [(profile[i] + shift[i]) * capacity for i in model.steps]
+            [profile[i] * capacity + shift[i] for i in model.steps]
             )
 
         return solution
