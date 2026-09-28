@@ -1,165 +1,94 @@
-import json
+'''
+Reading, writing and slicing power system graphs.
 
-import numpy as np
+Graphs are stored as NetworkX node-link JSON, optionally gzip-compressed
+(".json.gz"). Edges are stored under the "links" key.
+'''
+
 import networkx as nx
 
-# General utilities
+from .utilities import read_json, write_json
+
 
 def cypher(graph):
 
-	encoder = {k: idx for idx, k in enumerate(graph.nodes)}
-	decoder = {idx: k for idx, k in enumerate(graph.nodes)}
+    encoder = {k: idx for idx, k in enumerate(graph.nodes)}
+    decoder = {idx: k for idx, k in enumerate(graph.nodes)}
 
-	return encoder, decoder
+    return encoder, decoder
 
-# Functions for NLG JSON handling 
-
-class NpEncoder(json.JSONEncoder):
-	'''
-	Encoder to allow for numpy types to be converted to default types for
-	JSON serialization. For use with json.dump(s)/load(s).
-	'''
-	def default(self, obj):
-
-		if isinstance(obj, np.integer):
-
-			return int(obj)
-
-		if isinstance(obj, np.floating):
-
-			return float(obj)
-
-		if isinstance(obj, np.ndarray):
-
-			return obj.tolist()
-
-		return super(NpEncoder, self).default(obj)
-
-def nlg_to_json(nlg, filename):
-	'''
-	Writes nlg to JSON, overwrites previous
-	'''
-
-	with open(filename, 'w') as file:
-
-		json.dump(nlg, file, indent = 4, cls = NpEncoder)
-
-def append_nlg(nlg, filename):
-	'''
-	Writes nlg to JSON, appends to existing - NEEDS UPDATING
-	'''
-
-	nlg_from_file = Load(filename)
-
-	nlg = dict(**nlg_from_file, **nlg)
-
-	with open(filename, 'a') as file:
-
-		json.dump(nlg, file, indent = 4, cls = NpEncoder)
-
-def nlg_from_json(filename):
-	'''
-	Loads graph from nlg JSON
-	'''
-
-	with open(filename, 'r') as file:
-
-		nlg = json.load(file)
-
-	return nlg
-
-# Functions for NetworkX graph .json handling
-
-def graph_to_json(graph, filename, **kwargs):
-	'''
-	Writes graph to JSON, overwrites previous
-	'''
-
-	with open(filename, 'w') as file:
-
-		json.dump(nlg_from_graph(graph, **kwargs), file, indent = 4, cls = NpEncoder)
-
-def graph_from_json(filename, **kwargs):
-	'''
-	Loads graph from nlg JSON
-	'''
-
-	with open(filename, 'r') as file:
-
-		nlg = json.load(file)
-
-	return nx.node_link_graph(nlg, **kwargs)
-
-# Functions for converting between NLG and NetworkX graphs
 
 def graph_from_nlg(nlg, **kwargs):
+    '''Build a graph from node-link data whose edges are under "links".'''
 
-	return nx.node_link_graph(nlg, multigraph = False, **kwargs)
+    try:
 
-def nlg_from_graph(nlg, **kwargs):
+        return nx.node_link_graph(nlg, edges="links", **kwargs)
 
-	nlg = nx.node_link_data(nlg, **kwargs)
+    except TypeError:  # NetworkX < 3.4 has no "edges" keyword
 
-	return nlg
+        return nx.node_link_graph(nlg, **kwargs)
 
-# Functions for graph operations
+
+def nlg_from_graph(graph, **kwargs):
+    '''Node-link data for a graph, with edges under "links".'''
+
+    try:
+
+        return nx.node_link_data(graph, edges="links", **kwargs)
+
+    except TypeError:  # NetworkX < 3.4 has no "edges" keyword
+
+        return nx.node_link_data(graph, **kwargs)
+
+
+def graph_to_json(graph, filename, indent=None, **kwargs):
+    '''Write a graph to node-link JSON; a ".gz" suffix compresses it.'''
+
+    write_json(nlg_from_graph(graph, **kwargs), filename, indent=indent)
+
+
+def graph_from_json(filename, **kwargs):
+    '''Load a graph from node-link JSON (".json" or ".json.gz").'''
+
+    return graph_from_nlg(read_json(filename), **kwargs)
+
 
 def subgraph(graph, nodes):
+    '''A copy of ``graph`` restricted to ``nodes`` and the edges among them.'''
 
-	_node = graph._node
-	_adj = graph._adj
+    node_list = [(n, graph._node[n]) for n in nodes]
 
-	node_list = [(n, _node[n]) for n in nodes]
+    edge_list = [
+        (source, target, graph._adj[source][target])
+        for source in nodes for target in nodes
+        if target in graph._adj[source]
+    ]
 
-	edge_list = []
+    result = graph.__class__()
+    result.add_nodes_from(node_list)
+    result.add_edges_from(edge_list)
+    result.graph.update(graph.graph)
 
-	for source in nodes:
-		for target in nodes:
+    return result
 
-			edge_list.append((source, target, _adj[source].get(target, None)))
-
-	edge_list = [e for e in edge_list if e[2] is not None]
-
-	subgraph = graph.__class__()
-
-	subgraph.add_nodes_from(node_list)
-
-	subgraph.add_edges_from(edge_list)
-
-	subgraph.graph.update(graph.graph)
-
-	return subgraph
 
 def supergraph(graphs):
+    '''Union of several graphs; later graphs win where they overlap.'''
 
-	supergraph = graphs[0].__class__()
+    result = graphs[0].__class__()
 
-	nodes = []
+    for graph in graphs:
 
-	edges = []
+        result.add_nodes_from(graph.nodes(data=True))
+        result.add_edges_from(graph.edges(data=True))
+        result.graph.update(graph.graph)
 
-	names = []
+    return result
 
-	show = True
-
-	for graph in graphs:
-
-		for source, _adj in graph._adj.items():
-
-			nodes.append((source, graph._node[source]))
-
-			for target, edge in _adj.items():
-
-				edges.append((source, target, edge))
-
-	supergraph.add_nodes_from(nodes)
-
-	supergraph.add_edges_from(edges)
-
-	return supergraph
 
 def remove_self_edges(graph):
 
-	graph.remove_edges_from(nx.selfloop_edges(graph))
+    graph.remove_edges_from(list(nx.selfloop_edges(graph)))
 
-	return graph
+    return graph

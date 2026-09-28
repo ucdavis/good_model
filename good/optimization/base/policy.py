@@ -1,44 +1,76 @@
-import numpy as np
-import pyomo.environ as pyomo
+from ... import criteria
+from .component import Component
 
-class Policy:
-    '''
-    Super-class for all nodal policies. A nodal policy enforces a constraint which guarantees
-    that a specified portion of energy produced by node assets must come from assets with a
-    specified tag over a specified time period
-    '''
 
-    __base__ = 'Policy'
-    
-    def __init__(self, handle, **kwargs):
+class Policy(Component):
+    """A constraint on a set of assets, possibly spanning several nodes.
 
-        self.handle = handle
-        self.handles = []
+    Asset sets are chosen with attribute filters (see :mod:`good.criteria`),
+    so a policy can follow jurisdictions that do not line up with balancing
+    regions. Policies build one instance at a time; there are few of them.
+    """
 
-    def parameters(self, model, assets = []):
+    def select(self, net, spec):
+        """Handles of assets matching ``spec``, grouped by asset class."""
 
-        return model
+        handles = criteria.select(net.asset_attributes, spec)
 
-    def variables(self, model, assets = []):
+        return net.group_handles(handles)
 
-        return model
+    @staticmethod
+    def total(parts):
+        """Sum a list of scalar expressions and numbers."""
 
-    def constraints(self, model, assets = []):
+        total = 0.0
 
-        return model
+        for part in parts:
 
-    def objective(self, model, assets = []):
-        """Base objective function returns zero cost"""
+            total = part + total if not isinstance(part, (int, float)) else total + part
 
-        return 0.0  # Default to no cost for assets
+        return total
 
-    def solution(self, model):
+    def generation(self, net, grouped):
 
-        solution = {}
+        return self.total(cls.generation(net, handles) for cls, handles in grouped.items())
 
-        for handle in self.handles:
+    def capacity(self, net, grouped, weight=lambda o: 1.0):
 
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle] = value
+        return self.total(cls.capacity(net, handles, weight) for cls, handles in grouped.items())
 
-        return solution 
+    def demand(self, net, grouped):
+
+        return self.total(cls.demand(net, handles) for cls, handles in grouped.items())
+
+    @classmethod
+    def build(cls, net, objs):
+
+        for obj in objs:
+
+            obj.build_one(net)
+
+    def build_one(self, net):
+        """Add this policy's constraints."""
+
+    def non_compliance(self, net):
+        """Scalar slack variable, bounded by non_compliance_capacity and priced in the objective."""
+
+        var = net.model.add_variables(
+            lower=0, upper=self.p.non_compliance_capacity, name=f"{type(self).__name__}-{self.handle}-non_compliance"
+        )
+
+        net.add_cost(var * self.p.non_compliance_cost)
+
+        return var
+
+    @classmethod
+    def solution(cls, net, objs):
+
+        out = {}
+
+        for o in objs:
+
+            var = net.model.variables[f"{cls.__name__}-{o.handle}-non_compliance"]
+
+            out[o.handle] = {"non_compliance": [float(var.solution.values)]}
+
+        return out

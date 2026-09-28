@@ -1,176 +1,92 @@
-from ..base.node import Node
-from ..assets.load import Load
-from ..assets.producer import Producer
-import pyomo.environ as pyomo
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+from ...schema import RegionParams
+from ..base import Node
+
 
 class Region(Node):
     '''
-    Nodes are the fundamental unit of analysis for the optimization. Nodes host assets
-    and link terminals whose outputs must be balanced. The balancing constraint is nodal.
+    A balancing region. In every step, energy injected by the region's assets
+    and imported over lines must equal energy consumed and exported:
 
-    Regions enforce energy balance at each time step. This can be enforced rigidly or
-    permissively depending on shortfall and wastage parameters.
+        sum(injections) + shortfall - wastage = demand
 
-    Shortfall/wastage are included as a supplemental factor that allows for up to a 
-    certain amount of wiggle room in the energy balance constraint and should receive a
-    very high cost such that it will only be used if needed.
+    ``shortfall`` is unserved energy priced at ``shortfall_cost`` (value of
+    lost load) and ``wastage`` is surplus that cannot be used or curtailed,
+    priced at ``wastage_cost``. Both are bounded by their ``*_capacity``.
+    Unset values take the Network's defaults.
 
-    The limits of shortfall are  [0, shortfall_capacity]
-    The cost of shortfall is shortfall_cost
-
-    The limits of wastage are  [0, wastage_capacity]
-    The cost of wastage is wastage_cost
+    The dual of the balance constraint, divided by the step length, is the
+    region's clearing price in $/MWh.
     '''
-    def __init__(self, handle, **kwargs):
-        
-        super().__init__(handle, **kwargs)
 
-        self.assets = kwargs.get('assets', {})
-        self.imports = kwargs.get('imports', {})
-        self.exports = kwargs.get('exports', {})
+    Params = RegionParams
 
-        self.shortfall_capacity = kwargs.get('shortfall_capacity', 0)
-        self.shortfall_cost = kwargs.get('shortfall_cost', 1)
+    def setting(self, net, name):
 
-        self.wastage_capacity = kwargs.get('wastage_capacity', 0)
-        self.wastage_cost = kwargs.get('wastage_cost', 1)
+        value = getattr(self.p, name)
 
-    def parameters(self, model):
+        return getattr(net, name) if value is None else value
 
-        for asset in self.assets.values():
+    @classmethod
+    def build(cls, net, objs):
 
-            model = asset['object'].parameters(model)
+        m = net.model
+        index = net.regions
 
-        return model
+        def region_param(name):
 
-    def variables(self, model):
+            by_handle = {o.handle: o.setting(net, name) for o in objs}
 
-        for asset in self.assets.values():
+            return xr.DataArray([float(by_handle[r]) for r in index], coords=[index])
 
-            model = asset['object'].variables(model)
+        shape = (len(index), len(net.time))
 
-        # Shortfall - avoids infeasibility due to insufficient supply
-        handle = f"{self.handle}::shortfall"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                bounds = (0, self.shortfall_capacity),
-                ),
-            )
+        def grid(values):
 
-        # Wastage - avoids infeasibility due to excess supply
-        handle = f"{self.handle}::wastage"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                bounds = (0, self.wastage_capacity),
-                ),
-            )
+            return xr.DataArray(np.broadcast_to(values.values[:, None], shape).copy(), coords=[index, net.time])
 
-        return model
+        shortfall = m.add_variables(lower=0, upper=grid(region_param("shortfall_capacity")), name="Region-shortfall")
+        wastage = m.add_variables(lower=0, upper=grid(region_param("wastage_capacity")), name="Region-wastage")
 
-    def constraints(self, model):
-        """Energy balance constraints"""
+        lhs = shortfall - wastage
 
-        for asset in self.assets.values():
+        for expression in net.injections():
 
-            model = asset['object'].constraints(model)
+            lhs = lhs + expression
 
-        # Add constraints for all time steps
-        for step in model.steps:
+        m.add_constraints(lhs == net.fixed_demand(), name="Region-balance")
 
-            # Energy
-            asset_net_energy = sum(
-                asset['object'].energy(model, step) for asset in self.assets.values()
-            )
+        dt = net.time_step
 
-            # print(self.imports.keys())
+        net.add_cost((shortfall * region_param("shortfall_cost")).sum() * dt)
+        net.add_cost((wastage * region_param("wastage_cost")).sum() * dt)
 
-            imported_energy = sum(
-                import_line['object'].receive(model, step) \
-                for import_edge in self.imports.values() \
-                for import_line in import_edge['object'].lines.values()
-                )
+    @classmethod
+    def solution(cls, net, objs):
 
-            exported_energy = sum(
-                export_line['object'].transmit(model, step) \
-                for export_edge in self.exports.values() \
-                for export_line in export_edge['object'].lines.values()
-                )
+        v = net.model.variables
+        shortfall = v["Region-shortfall"].solution
+        wastage = v["Region-wastage"].solution
 
-            shortfall = getattr(model, f"{self.handle}::shortfall")[step]
-            wastage = getattr(model, f"{self.handle}::wastage")[step]
-            
-            net_energy = (
-                asset_net_energy + imported_energy -
-                exported_energy + shortfall - wastage
-                )
-            
-            if not isinstance(asset_net_energy, float):
+        dual = net.model.constraints["Region-balance"].dual
+        price = dual / net.time_step if dual is not None else None
 
-                setattr(
-                    model, f"{self.handle}::balance:{step}",
-                    pyomo.Constraint(expr = net_energy == 0)
-                )
+        out = {}
 
-        return model
+        for o in objs:
 
-    def objective(self, model):
-        """Sum the objectives of all assets"""
+            result = {
+                "shortfall": shortfall.sel(region=o.handle).values.tolist(),
+                "wastage": wastage.sel(region=o.handle).values.tolist(),
+            }
 
-        net_asset_cost = sum(
-            asset['object'].objective(model) for asset in self.assets.values()
-            )
+            if price is not None:
 
-        imports_cost = sum(
-            import_line['object'].objective(model) \
-            for import_edge in self.imports.values() \
-            for import_line in import_edge['object'].lines.values()
-            )
+                result["clearing_price"] = price.sel(region=o.handle).values.tolist()
 
-        exports_cost = sum(
-            export_line['object'].objective(model) \
-            for export_edge in self.exports.values() \
-            for export_line in export_edge['object'].lines.values()
-            )
+            out[o.handle] = result
 
-        shortfall_cost = sum(
-            getattr(model, f"{self.handle}::shortfall")[step] for step in model.steps
-            ) * self.shortfall_cost
-
-        wastage_cost = sum(
-            getattr(model, f"{self.handle}::wastage")[step] for step in model.steps
-            ) * self.wastage_cost
-
-        cost = (
-            net_asset_cost + imports_cost - exports_cost + shortfall_cost + wastage_cost
-            )
-
-        return cost
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle.split('::')[1]] = value
-
-        if hasattr(model, 'dual'):
-
-            handle = f"{self.handle}::balance"
-
-            duals = {str(k): model.dual[k] for k in model.dual.keys()}
-
-            solution['clearing_price'] = (
-                [v for k, v in duals.items() if handle in k]
-                )
-
-        return solution
+        return out

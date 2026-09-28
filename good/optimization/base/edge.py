@@ -1,40 +1,13 @@
-import pyomo.environ as pyomo
+from .component import Component
 
-class Edge:
 
-    __base__ = 'Edge'
+class Edge(Component):
+    """A directed connection between two nodes. Holds lines."""
 
-    def __init__(self, handle, **kwargs):
+    def __init__(self, handle, source=None, target=None, **kwargs):
 
-        self.handle = handle
-        self.handles = []
+        super().__init__(handle, **kwargs)
 
+        self.source = source
+        self.target = target
         self.lines = {}
-
-    def parameters(self, model):
-
-        return model
-
-    def variables(self, model):
-
-        return model
-
-    def constraints(self, model):
-
-        return model
-
-    def objective(self, model):
-        """Base objective function returns zero cost"""
-
-        return 0.  # Default to no cost for nodes
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle] = value
-
-        return solution 

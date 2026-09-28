@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use GOOD in your research, please cite it as below."
+title: "GOOD: Grid Optimized Operation Dispatch"
+type: software
+version: 2.0.0
+license: BSD-3-Clause
+repository-code: "https://github.com/ucdavis/good_model"
+authors:
+  - family-names: Rabinowitz
+    given-names: Aaron
+  - family-names: Tayarani
+    given-names: Hanif
+  - family-names: Li
+    given-names: Jiwei
+  - family-names: Jenn
+    given-names: Alan
+    affiliation: "University of California, Davis"
+keywords:
+  - power systems
+  - economic dispatch
+  - capacity expansion
+  - transportation electrification

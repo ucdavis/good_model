@@ -1,285 +1,180 @@
-from ..base.asset import Asset
-import pyomo.environ as pyomo
-
 import numpy as np
+import xarray as xr
+
+from ...schema import StoreParams
+from ..base import Asset
+from ..base.component import annual_cost, labels, param, subset, total_energy
+
 
 class Store(Asset):
+    '''
+    Energy storage such as batteries and pumped hydro.
 
-    def __init__(self, handle, **kwargs):
+    Power capacity (MW) limits charging and discharging; energy capacity (MWh)
+    limits the state of charge. Energy capacity is ``installed_energy`` when
+    given, otherwise ``installed_capacity * duration``. New builds add power
+    and energy together at the store's ``duration`` and pay
+    ``capex_cost + duration * energy_capex_cost`` per MW.
 
-        super().__init__(handle, **kwargs)
+    State of charge follows
 
-        # Operational parameters
-        self.installed_capacity = kwargs.get('installed_capacity', 0)
-        self.operating_cost = kwargs.get('operating_cost', 0)
-        self.efficiency = kwargs.get('efficiency', 1)
-        self.production_rate = kwargs.get('production_rate', 1)
-        self.consumption_rate = kwargs.get('consumption_rate', 1)
-        self.initial = kwargs.get('initial', 0)
+        soc[t] = soc[t-1] + (charge_efficiency * charge[t] - discharge[t] / discharge_efficiency) * dt
 
-        # Can capacity be expanded
-        self.capex_capacity = kwargs.get('capex_capacity', 0)
-        self.capex_cost = kwargs.get('capex_cost', 0)
-        self.extensible = self.capex_capacity > 0
+    and wraps from the last step to the first when ``cyclic`` (the default),
+    so a short window neither starts empty nor gets free energy.
+    '''
 
-    def parameters(self, model):
+    Params = StoreParams
 
-        # Capacity Expansion
-        if not self.extensible:
+    @classmethod
+    def build(cls, net, objs):
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(initialize = 0),
+        m = net.model
+        dim = cls.dim()
+        dt = net.time_step
+
+        power = param(cls, objs, lambda o: o.p.installed_capacity)
+        energy = param(cls, objs, lambda o: o.p.energy_capacity)
+        extensible = param(cls, objs, lambda o: o.p.extensible, dtype=bool)
+
+        coords = [cls.index(objs), net.time]
+        shape = (len(objs), len(net.time))
+
+        def upper(values):
+
+            return xr.DataArray(
+                np.broadcast_to(xr.where(extensible, np.inf, values).values[:, None], shape).copy(),
+                coords=coords,
             )
 
-        return model
+        charge = m.add_variables(lower=0, upper=upper(power), name=f"{dim}-charge")
+        discharge = m.add_variables(lower=0, upper=upper(power), name=f"{dim}-discharge")
+        soc = m.add_variables(lower=0, upper=upper(energy), name=f"{dim}-soc")
 
-    def variables(self, model):
+        ext = subset(objs, lambda o: o.p.extensible)
+        new = None
 
-        # Production - energy to grid (discharging)
-        handle = f"{self.handle}::production"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                within = pyomo.NonNegativeReals
-                ),
+        if ext:
+
+            eidx = cls.index(ext)
+            new = m.add_variables(
+                lower=0, upper=param(cls, ext, lambda o: o.p.capex_capacity), name=f"{dim}-new_capacity"
             )
+            duration = param(cls, ext, lambda o: o.p.duration)
 
-        # Consumption - energy from gid (charging)
-        handle = f"{self.handle}::consumption"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                within = pyomo.NonNegativeReals
-                ),
-            )
-        # Level
-        handle = f"{self.handle}::level"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                within = pyomo.NonNegativeReals
-                ),
-            )
+            m.add_constraints(charge.sel({dim: eidx}) - new <= power.sel({dim: eidx}), name=f"{dim}-max_charge")
+            m.add_constraints(discharge.sel({dim: eidx}) - new <= power.sel({dim: eidx}), name=f"{dim}-max_discharge")
+            m.add_constraints(soc.sel({dim: eidx}) - duration * new <= energy.sel({dim: eidx}), name=f"{dim}-max_soc")
 
-        # Capacity Expansion
-        if self.extensible:
+            unit_cost = annual_cost(net, cls, ext, capex=lambda o: o.p.capex_cost + o.p.duration * o.p.energy_capex_cost)
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Var(
-                    initialize = 0,
-                    bounds = (0, self.capex_capacity), within = pyomo.NonNegativeReals,
-                    ),
-                )
+            net.add_cost((new * unit_cost).sum() * net.year_fraction)
 
-        return model
+        eta_c = param(cls, objs, lambda o: o.p.charge_efficiency)
+        eta_d = param(cls, objs, lambda o: o.p.discharge_efficiency)
 
-    def constraints(self, model):
+        flow = (charge * eta_c - discharge / eta_d) * dt
 
-        production = getattr(model, f"{self.handle}::production")
-        consumption = getattr(model, f"{self.handle}::consumption")
-        level = getattr(model, f"{self.handle}::level")
-        capex = getattr(model, f"{self.handle}::capex")
+        later = xr.DataArray(net.time > net.time[0], coords=[net.time])
+        m.add_constraints(soc - soc.shift(time=1) - flow == 0, name=f"{dim}-soc_balance", mask=later)
 
-        # Setting the level
-        def level_rule(m, t):
+        cyclic = subset(objs, lambda o: o.p.cyclic)
 
-            if t == 0:
+        if cyclic:
 
-                rule = (self.initial, level[t], self.initial)
+            cidx = cls.index(cyclic)
+            s = soc.sel({dim: cidx})
+            first = (s - s.roll(time=1) - flow.sel({dim: cidx})).isel(time=[0])
+            m.add_constraints(first == 0, name=f"{dim}-soc_cyclic")
+
+        acyclic = subset(objs, lambda o: not o.p.cyclic)
+
+        if acyclic:
+
+            aidx = cls.index(acyclic)
+            start = param(cls, acyclic, lambda o: o.p.initial_soc)
+            lhs = (soc.sel({dim: aidx}) - flow.sel({dim: aidx})).isel(time=[0])
+            rhs = start * energy.sel({dim: aidx})
+
+            grown = subset(acyclic, lambda o: o.p.extensible)
+
+            if grown:
+
+                gidx = cls.index(grown)
+                lhs_g = lhs.sel({dim: gidx}) - (start.sel({dim: gidx}) * param(cls, grown, lambda o: o.p.duration)) * new.sel({dim: gidx})
+                m.add_constraints(lhs_g == rhs.sel({dim: gidx}), name=f"{dim}-soc_initial_ext")
+
+                fixed = subset(acyclic, lambda o: not o.p.extensible)
+
+                if fixed:
+
+                    fidx = cls.index(fixed)
+                    m.add_constraints(lhs.sel({dim: fidx}) == rhs.sel({dim: fidx}), name=f"{dim}-soc_initial")
 
             else:
 
-                rule = level[t] == (
-                    level[t - 1] +
-                    consumption[t] * model.time_step -
-                    production[t] * model.time_step
-                    )
-                    
-            return rule
+                m.add_constraints(lhs == rhs, name=f"{dim}-soc_initial")
 
-        setattr(
-            model, f"{self.handle}::level_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = lambda m, t: level_rule(m, t),
-                )
-            )
+        net.add_injection(discharge - charge, labels(cls, objs, lambda o: o.node))
 
-        setattr(
-            model, f"{self.handle}::level_initial_constraint",
-            pyomo.Constraint(
-                rule = level[model.steps.at(1)] == self.initial
-                )
-            )
+        cost = param(cls, objs, lambda o: o.p.operating_cost)
 
-        setattr(
-            model, f"{self.handle}::level_final_constraint",
-            pyomo.Constraint(
-                rule = level[model.steps.at(-1)] == self.initial
-                )
-            )
+        net.add_cost((discharge * cost).sum() * dt)
 
-        setattr(
-            model, f"{self.handle}::production_intial_constraint",
-            pyomo.Constraint(
-                rule = production[model.steps.at(1)] == 0
-                )
-            )
+    @classmethod
+    def generation(cls, net, handles):
 
-        setattr(
-            model, f"{self.handle}::consumption_intial_constraint",
-            pyomo.Constraint(
-                rule = consumption[model.steps.at(1)] == 0
-                )
-            )
+        dim = cls.dim()
+        net_output = net.model.variables[f"{dim}-discharge"] - net.model.variables[f"{dim}-charge"]
+        total = total_energy(net, cls, "total_net_output", net_output)
 
-        setattr(
-            model, f"{self.handle}::production_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = (
-                    lambda m, t: (
-                        (self.installed_capacity + capex) * self.production_rate
-                         - production[t] >= 0
-                         )
-                    )
-                )
-            )
+        return total.sel({dim: handles}).sum()
 
-        setattr(
-            model, f"{self.handle}::consumption_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = (
-                    lambda m, t: (
-                        (self.installed_capacity + capex) * self.consumption_rate
-                         - consumption[t] >= 0
-                         )
-                    )
-                )
-            )
+    @classmethod
+    def capacity(cls, net, handles, weight=lambda o: 1.0):
 
-        # Max and min level
-        setattr(
-            model, f"{self.handle}::storage_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = (
-                    lambda m, t: self.installed_capacity + capex - level[t] >= 0
-                    )
-                )
-            )
+        objs = [net.objects[h] for h in handles]
+        total = sum(o.p.installed_capacity * weight(o) for o in objs)
 
-        return model
+        ext = subset(objs, lambda o: o.p.extensible)
 
-    def objective(self, model):
+        if ext:
 
-        production = getattr(model, f"{self.handle}::production")
-        
-        production_cost = pyomo.quicksum(
-            production[t] * model.time_step * self.operating_cost  for t in model.steps
-        )
+            new = net.model.variables[f"{cls.dim()}-new_capacity"].sel({cls.dim(): cls.index(ext)})
+            total = (new * param(cls, ext, weight)).sum() + total
 
-        capex = getattr(model, f"{self.handle}::capex")
+        return total
 
-        expansion_cost = capex * self.capex_cost * model.amortization
+    @classmethod
+    def solution(cls, net, objs):
 
-        cost = production_cost + expansion_cost
-        
-        return cost
+        dim = cls.dim()
+        v = net.model.variables
+        charge = v[f"{dim}-charge"].solution
+        discharge = v[f"{dim}-discharge"].solution
+        soc = v[f"{dim}-soc"].solution
 
-    def energy(self, model, step = None):
+        new = {}
 
-        production = getattr(model, f"{self.handle}::production")
-        consumption = getattr(model, f"{self.handle}::consumption")
-        efficiency = self.efficiency
+        if f"{dim}-new_capacity" in v:
 
-        if step is None:
+            sol = v[f"{dim}-new_capacity"].solution
+            new = dict(zip(sol.coords[dim].values, sol.values.tolist()))
 
-            energy = pyomo.quicksum(
-                production[i] * efficiency * model.time_step -
-                consumption[i] / efficiency * model.time_step
-                for i in model.steps
-            )
+        out = {}
 
-        else:
+        for o in objs:
 
-            energy = (
-                production[step] * efficiency * model.time_step -
-                consumption[step] / efficiency * model.time_step
-                )
+            c = charge.sel({dim: o.handle}).values
+            d = discharge.sel({dim: o.handle}).values
 
-        return energy
+            out[o.handle] = {
+                "charge": c.tolist(),
+                "discharge": d.tolist(),
+                "soc": soc.sel({dim: o.handle}).values.tolist(),
+                "new_capacity": [new.get(o.handle, 0.0)],
+                "new_energy": [new.get(o.handle, 0.0) * (o.p.duration or 0.0)],
+                "net": (d - c).tolist(),
+            }
 
-    def power(self, model, step = None):
-
-        production = getattr(model, f"{self.handle}::production")
-        consumption = getattr(model, f"{self.handle}::consumption")
-        efficiency = self.efficiency
-
-        if step is None:
-
-            power = pyomo.quicksum(
-                production[i] * efficiency -
-                consumption[i] / efficiency
-                for i in model.steps
-            )
-
-        else:
-
-            power = (
-                production[step] * efficiency -
-                consumption[step] / efficiency
-                )
-
-        return power
-
-    def capacity(self, model, step = None):
-
-        capex = getattr(model, f"{self.handle}::capex")
-
-        capacity = self.installed_capacity + capex
-
-        return capacity
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle.split('::')[1]] = value
-
-        # Net Contribution
-        production = list(
-            getattr(model, f"{self.handle}::production").extract_values().values()
-            )
-
-        consumption = list(
-            getattr(model, f"{self.handle}::consumption").extract_values().values()
-            )
-
-        efficiency = self.efficiency
-
-        solution["net"] = (
-            [production[i] * efficiency - consumption[i] / efficiency \
-            for i in model.steps]
-            )
-
-        return solution
+        return out

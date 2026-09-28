@@ -1,55 +1,38 @@
-import numpy as np
-import pyomo.environ as pyomo
+from .component import Component
 
-class Asset:
-    '''
-    Super-class for all grid assets. An asset is subordinate to a region and the output
-    of all assets must sum to zero for any region at all time steps.
-    '''
 
-    __base__ = 'Asset'
-    
-    def __init__(self, handle, **kwargs):
+class Asset(Component):
+    """Something inside a node that produces, consumes or stores energy.
 
-        self.handle = handle
-        self.handles = []
+    Besides ``build`` and ``solution``, asset classes expose three class
+    methods that policies use. Each takes the handles of the selected assets
+    of this class:
 
-    def parameters(self, model):
+    * ``generation(net, handles)``: total energy produced (MWh), a scalar
+      linopy expression or 0.
+    * ``capacity(net, handles, weight)``: total capacity (MW) weighted per
+      asset by ``weight(obj)``, a scalar expression or number.
+    * ``demand(net, handles)``: total demand per step (MW), a time-indexed
+      DataArray or 0.
+    """
 
-        return model
+    def __init__(self, handle, node=None, **kwargs):
 
-    def variables(self, model):
+        super().__init__(handle, **kwargs)
 
-        return model
+        self.node = node
 
-    def constraints(self, model):
+    @classmethod
+    def generation(cls, net, handles):
 
-        return model
+        return 0.0
 
-    def energy(self, model, step = None):
+    @classmethod
+    def capacity(cls, net, handles, weight=lambda o: 1.0):
 
-        return 0.  # Default to no energy contribution
+        return 0.0
 
-    def power(self, model, step = None):
+    @classmethod
+    def demand(cls, net, handles):
 
-        return 0.  # Default to no power contribution
-
-    def capacity(self, model, step = None):
-
-        return 0.
-
-    def objective(self, model):
-        """Base objective function returns zero cost"""
-
-        return 0.  # Default to no cost for assets
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle] = value
-
-        return solution 
+        return 0.0

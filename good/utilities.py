@@ -1,17 +1,13 @@
-import os
-import sys
-import time
+import gzip
 import json
+import os
 
 import numpy as np
 
-from scipy.stats import t
-from shutil import get_terminal_size
 
 class NpEncoder(json.JSONEncoder):
     '''
-    Encoder to allow for numpy types to be converted to default types for
-    JSON serialization. For use with json.dump(s)/load(s).
+    Encoder that converts NumPy types to built-in types for json.dump(s).
     '''
     def default(self, obj):
 
@@ -23,60 +19,66 @@ class NpEncoder(json.JSONEncoder):
 
             return float(obj)
 
+        if isinstance(obj, np.bool_):
+
+            return bool(obj)
+
         if isinstance(obj, np.ndarray):
 
             return obj.tolist()
 
         return super(NpEncoder, self).default(obj)
 
-def write_json(data, filename = 'output.json'):
 
-    with open(filename, 'w') as file:
+def _open(filename, mode):
+    '''Open plain or gzip-compressed (".gz") text files.'''
 
-        json.dump(data, file, indent = 4, cls = NpEncoder)
+    if str(filename).endswith(".gz"):
+
+        return gzip.open(filename, mode + "t", encoding="utf-8")
+
+    return open(filename, mode, encoding="utf-8")
+
+
+def write_json(data, filename='output.json', indent=4):
+    '''Write JSON; a ".gz" suffix compresses the file.'''
+
+    with _open(filename, 'w') as file:
+
+        json.dump(data, file, indent=indent, cls=NpEncoder)
+
 
 def read_json(filename):
+    '''Read JSON, compressed or not.'''
 
-    with open(filename, 'r') as file:
+    with _open(filename, 'r') as file:
 
-        data = json.load(file)
+        return json.load(file)
 
-    return data
 
-def read_jsons(directory, output = 'list'):
-    
-    if output == 'list':
+def read_jsons(directory, output='list'):
+    '''Read every JSON file in a directory into a list or a dict keyed by file stem.'''
 
-        data = []
+    names = sorted(n for n in os.listdir(directory) if n.endswith((".json", ".json.gz")))
+    paths = [os.path.join(directory, n) for n in names]
 
-        for filename in os.listdir(directory):
+    if output == 'dict':
 
-            with open(directory + filename, 'r') as file:
+        return {n.split('.')[0]: read_json(p) for n, p in zip(names, paths)}
 
-                data.append(json.load(file))
+    return [read_json(p) for p in paths]
 
-    elif output == 'dict':
-
-        data = {}
-
-        for filename in os.listdir(directory):
-
-            with open(directory + filename, 'r') as file:
-
-                key = filename.split('.')[0]
-
-                data[key] = json.load(file)
-
-    return data
 
 def pythagorean(source_x, source_y, target_x, target_y):
 
     return np.sqrt((target_x - source_x) ** 2 + (target_y - source_y) ** 2)
 
-def haversine(source_lon, source_lat, target_lon, target_lat, **kwargs):
 
-    radius = kwargs.get('radius', 6372800) # [m]
-    
+def haversine(source_lon, source_lat, target_lon, target_lat, **kwargs):
+    '''Great-circle distance in meters.'''
+
+    radius = kwargs.get('radius', 6372800)  # [m]
+
     distance_longitude_radians = np.radians(target_lon - source_lon)
     distance_latitude_radians = np.radians(target_lat - source_lat)
 
@@ -94,7 +96,8 @@ def haversine(source_lon, source_lat, target_lon, target_lat, **kwargs):
 
     return c * radius
 
-def cprint(message, disp = True, **kwargs):
+
+def cprint(message, disp=True, **kwargs):
 
     if disp:
 
