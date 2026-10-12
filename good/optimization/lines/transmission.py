@@ -1,149 +1,132 @@
-from ..base.line import Line
-import pyomo.environ as pyomo
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+from ...exceptions import GOOD_ValidationError
+from ...schema import TransmissionParams
+from ..base import Line
+from ..base.component import annual_cost, labels, param, subset
+
 
 class Transmission(Line):
     '''
-    Links enable transfer of energy between nodes. Each link has exactly one source node
-    and exactly one target node with energy transferred from source to target.
+    A directed transfer path from the edge's source region to its target.
+
+    ``flow`` (MW) leaves the source and ``efficiency * flow`` arrives at the
+    target. Opposite directions are separate lines so their limits can
+    differ. Lines that name the same ``corridor`` share one expansion
+    decision: new capacity raises both directions and is paid for once.
+    Wheeling costs (``operating_cost``) are charged once per MWh sent.
     '''
-    def __init__(self, handle, **kwargs):
 
-        super().__init__(handle, **kwargs)
-        
-        self.installed_capacity = kwargs.get('installed_capacity', 0)
-        self.operating_cost = kwargs.get('operating_cost', 0)
-        self.efficiency = kwargs.get('efficiency', 1)
+    Params = TransmissionParams
 
-        # Can capacity be expanded
-        self.capex_limit = kwargs.get('capex_limit', 0)
-        self.capex_cost = kwargs.get('capex_cost', 0)
-        self.extensible = self.capex_limit > 0
+    @classmethod
+    def corridor_of(cls, obj):
 
-    def parameters(self, model):
+        return obj.p.corridor if obj.p.corridor is not None else obj.handle
 
-        # Capacity Expansion
-        if not self.extensible:
+    @classmethod
+    def build(cls, net, objs):
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(initialize = 0),
+        m = net.model
+        dim = cls.dim()
+
+        cap = param(cls, objs, lambda o: o.p.installed_capacity)
+        extensible = param(cls, objs, lambda o: o.p.extensible, dtype=bool)
+        upper = xr.where(extensible, np.inf, cap).broadcast_like(
+            xr.DataArray(np.zeros(len(net.time)), coords=[net.time])
+        ).transpose(dim, "time")
+
+        flow = m.add_variables(lower=0, upper=upper, name=f"{dim}-flow")
+
+        ext = subset(objs, lambda o: o.p.extensible)
+
+        if ext:
+
+            corridors = {}
+
+            for o in ext:
+
+                corridors.setdefault(cls.corridor_of(o), []).append(o)
+
+            cls._check_corridors(corridors)
+
+            cdim = f"{dim}_corridor"
+            cidx = pd.Index(list(corridors), name=cdim)
+            first = [members[0] for members in corridors.values()]
+
+            new = m.add_variables(
+                lower=0,
+                upper=xr.DataArray([o.p.capex_capacity for o in first], coords=[cidx]),
+                name=f"{dim}-new_capacity",
             )
 
-        return model
+            eidx = cls.index(ext)
+            corridor_of_line = xr.DataArray([cls.corridor_of(o) for o in ext], coords=[eidx])
+            new_by_line = new.sel({cdim: corridor_of_line})
 
-    def variables(self, model):
+            m.add_constraints(flow.sel({dim: eidx}) - new_by_line <= cap.sel({dim: eidx}), name=f"{dim}-max_flow")
 
-        # Production (transmission flow)
-        handle = f"{self.handle}::transmission"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                within = pyomo.NonNegativeReals
-                ),
-            )
+            unit_cost = xr.DataArray(annual_cost(net, cls, first).values, coords=[cidx])
 
-        # Capacity Expansion
-        if self.extensible:
+            net.add_cost((new * unit_cost).sum() * net.year_fraction)
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Var(
-                    initialize = 0,
-                    bounds = (0, self.capex_limit), within = pyomo.NonNegativeReals,
-                    ),
-                )
+        efficiency = param(cls, objs, lambda o: o.p.efficiency)
 
-        return model
+        net.add_injection(-flow, labels(cls, objs, lambda o: o.source))
+        net.add_injection(flow * efficiency, labels(cls, objs, lambda o: o.target))
 
-    def constraints(self, model):
+        cost = param(cls, objs, lambda o: o.p.operating_cost)
 
-        # Capacity constraint
-        transmission = getattr(model, f"{self.handle}::transmission")
-        capex = getattr(model, f"{self.handle}::capex")
-        
-        setattr(
-            model, f"{self.handle}::capacity_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule=lambda m, t: transmission[t] <= self.installed_capacity + capex
-            )
-        )
-        
-        return model
+        net.add_cost((flow * cost).sum() * net.time_step)
 
-    def transmit(self, model, step = None):
+    @staticmethod
+    def _check_corridors(corridors):
 
-        transmission = getattr(model, f"{self.handle}::transmission")
+        problems = []
 
-        if step is None:
+        for name, members in corridors.items():
 
-            energy = pyomo.quicksum(
-                transmission[i] * model.time_step for i in model.steps
-            )
+            keys = ("capex_capacity", "capex_cost", "fom_cost", "lifetime", "capital_charge_rate", "discount_rate")
+            reference = [getattr(members[0].p, k) for k in keys]
 
-        else:
+            for o in members[1:]:
 
-            energy = transmission[step] * model.time_step
+                if [getattr(o.p, k) for k in keys] != reference:
 
-        return energy
+                    problems.append(
+                        f"Transmission {o.handle!r}: expansion inputs differ from {members[0].handle!r} "
+                        f"in corridor {name!r}; lines in one corridor must share them"
+                    )
 
-    def receive(self, model, step = None):
+        if problems:
 
-        transmission = getattr(model, f"{self.handle}::transmission")
+            raise GOOD_ValidationError(problems)
 
-        if step is None:
+    @classmethod
+    def solution(cls, net, objs):
 
-            energy = pyomo.quicksum(
-                transmission[i] * model.time_step * self.efficiency for i in model.steps
-            )
+        dim = cls.dim()
+        flow = net.model.variables[f"{dim}-flow"].solution
 
-        else:
+        new = {}
 
-            energy = transmission[step] * model.time_step * self.efficiency
+        if f"{dim}-new_capacity" in net.model.variables:
 
-        return energy
+            sol = net.model.variables[f"{dim}-new_capacity"].solution
+            new = dict(zip(sol.coords[f"{dim}_corridor"].values, sol.values.tolist()))
 
-    def capacity(self, model, step = None):
+        out = {}
 
-        capex = getattr(model, f"{self.handle}::capex")
+        for o in objs:
 
-        capacity = self.installed_capacity + capex
+            f = flow.sel({dim: o.handle}).values
 
-        return capacity
+            out[o.handle] = {
+                "flow": f.tolist(),
+                "received": (f * o.p.efficiency).tolist(),
+                "new_capacity": [new.get(cls.corridor_of(o), 0.0) if o.p.extensible else 0.0],
+            }
 
-    def objective(self, model):
-        """
-        Calculate the cost of transmission
-        """
-
-        transmission = getattr(model, f"{self.handle}::transmission")
-
-        transmission_cost =  pyomo.quicksum(
-            transmission[t] * model.time_step * self.operating_cost for t in model.steps
-        )
-
-        capex = getattr(model, f"{self.handle}::capex")
-
-        expansion_cost = capex * self.capex_cost * model.amortization
-
-        cost = transmission_cost + expansion_cost
-
-        return cost
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle.split('::')[1]] = value
-
-        return solution
+        return out

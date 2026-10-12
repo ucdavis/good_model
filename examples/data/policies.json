@@ -1,0 +1,866 @@
+{
+  "rps_AZ": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.086690195,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "AZ"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "AZ"
+    }
+  },
+  "rps_CA": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.447622503,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "CA"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "CA"
+    }
+  },
+  "rps_CO": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.195712274,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "CO"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "CO"
+    }
+  },
+  "rps_CT": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.336294722,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "CT"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "CT"
+    }
+  },
+  "rps_DE": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.175451804,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "DE"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "DE"
+    }
+  },
+  "rps_IA": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.005454992,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "IA"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "IA"
+    }
+  },
+  "rps_IL": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.22161836,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "IL"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "IL"
+    }
+  },
+  "rps_KS": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.0,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "KS"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "KS"
+    }
+  },
+  "rps_MA": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.267725755,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MA"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MA"
+    }
+  },
+  "rps_MD": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.386638895,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MD"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MD"
+    }
+  },
+  "rps_ME": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.520222469,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "ME"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "ME"
+    }
+  },
+  "rps_MI": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.208333333,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MI"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MI"
+    }
+  },
+  "rps_MN": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.249791434,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MN"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MN"
+    }
+  },
+  "rps_MO": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.098480274,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MO"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MO"
+    }
+  },
+  "rps_MT": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.0,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MT"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "MT"
+    }
+  },
+  "rps_NC": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.048230807,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NC"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NC"
+    }
+  },
+  "rps_NE": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.0,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NE"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NE"
+    }
+  },
+  "rps_NH": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.207723388,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NH"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NH"
+    }
+  },
+  "rps_NJ": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.41482223,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NJ"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NJ"
+    }
+  },
+  "rps_NM": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.363695731,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NM"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NM"
+    }
+  },
+  "rps_NS": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.4,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NS"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NS"
+    }
+  },
+  "rps_NV": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.291710789,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NV"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NV"
+    }
+  },
+  "rps_NY": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.515187901,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NY"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "NY"
+    }
+  },
+  "rps_OH": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.060610023,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "OH"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "OH"
+    }
+  },
+  "rps_OR": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.202639484,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "OR"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "OR"
+    }
+  },
+  "rps_PA": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.07810129,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "PA"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "PA"
+    }
+  },
+  "rps_RI": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.335916647,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "RI"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "RI"
+    }
+  },
+  "rps_TX": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.039919281,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "TX"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "TX"
+    }
+  },
+  "rps_voluntary": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.059794406,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "voluntary"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "voluntary"
+    }
+  },
+  "rps_VT": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.63,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "VT"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "VT"
+    }
+  },
+  "rps_WA": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.129821978,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "WA"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "WA"
+    }
+  },
+  "rps_WI": {
+    "type": "rps",
+    "_class": "Portfolio_Standard",
+    "ratio": 0.100067305,
+    "include": {
+      "renewable": true,
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "WI"
+    },
+    "exclude": {
+      "renewable": {
+        "not": true
+      },
+      "_class": {
+        "not": "Store"
+      },
+      "type": {
+        "not": "load"
+      },
+      "jurisdiction": "WI"
+    }
+  }
+}

@@ -1,242 +1,194 @@
-from ..base.asset import Asset
-
 import numpy as np
-import pyomo.environ as pyomo
-import logging
+import xarray as xr
+
+from ...schema import ProducerParams
+from ..base import Asset
+from ..base.component import annual_cost, labels, param, profile_matrix, subset, total_energy
+
 
 class Producer(Asset):
+    '''
+    A source of energy: thermal plants, hydro, geothermal, wind and solar.
 
-    def __init__(self, handle, **kwargs):
+    Output in each step is limited by availability times capacity, where
+    availability is ``capacity_factor * profile``. Wind and solar are
+    producers with a profile, so the model can curtail them.
 
-        super().__init__(handle, **kwargs)
+    * ``dispatchable=False`` fixes output at availability (must-take or must-run).
+    * ``min_output`` sets a floor as a fraction of capacity.
+    * ``ramp_rate`` limits the change in output per hour.
+    * ``energy_budget_window`` turns the profile into an energy budget: output
+      summed over each window of that many steps may not exceed summed
+      availability, while hourly output may reach full capacity (for hydro).
 
-        self.dispatchable = kwargs.get('dispatchable', True)
+    Output limits are variable bounds when capacity is fixed, and constraints
+    only for expandable producers.
+    '''
 
-        # Operational parameters
-        self.installed_capacity = kwargs.get('installed_capacity', 0)
-        self.operating_cost = kwargs.get('operating_cost', 0)
-        self.ramp_rate = kwargs.get('ramp_rate', 1)
+    Params = ProducerParams
 
-        # Can capacity be expanded
-        self.capex_capacity = kwargs.get('capex_capacity', 0)
-        self.capex_cost = kwargs.get('capex_cost', 0)
+    @classmethod
+    def build(cls, net, objs):
 
-        # print(self.handle, self.capex_capacity)
-        self.extensible = self.capex_capacity > 0
+        m = net.model
+        dim = cls.dim()
 
-        # Profile of instantaneous capcity factors (as per-unit values 0-1)
-        self.profile = kwargs.get('profile', None)
-        self.capacity_factor = kwargs.get('capacity_factor', 1)
+        cap = param(cls, objs, lambda o: o.p.installed_capacity)
+        avail = profile_matrix(net, cls, objs) * param(cls, objs, lambda o: o.p.capacity_factor)
 
-        if self.profile is not None:
+        budget = param(cls, objs, lambda o: o.p.energy_budget_window is not None, dtype=bool)
+        hourly = xr.where(budget, 1.0, avail)
 
-            self.profile = np.array(self.profile)
+        floor = np.minimum(param(cls, objs, lambda o: o.p.min_output), hourly)
+        must_take = param(cls, objs, lambda o: not o.p.dispatchable, dtype=bool)
+        floor = xr.where(must_take, hourly, floor)
 
-    def parameters(self, model):
+        extensible = param(cls, objs, lambda o: o.p.extensible, dtype=bool)
 
-        # Capacity Expansion
-        if not self.extensible:
+        upper = xr.where(extensible, np.inf, hourly * cap)
+        lower = xr.where(extensible, 0.0, floor * cap)
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(initialize = 0),
+        production = m.add_variables(lower=lower, upper=upper, name=f"{dim}-production")
+
+        ext = subset(objs, lambda o: o.p.extensible)
+
+        if ext:
+
+            eidx = cls.index(ext)
+            new = m.add_variables(
+                lower=0, upper=param(cls, ext, lambda o: o.p.capex_capacity), name=f"{dim}-new_capacity"
             )
 
-        # Capacity Factor Profile
-        if self.profile is None:
+            p_e = production.sel({dim: eidx})
+            h_e = hourly.sel({dim: eidx})
+            f_e = floor.sel({dim: eidx})
+            c_e = cap.sel({dim: eidx})
 
-            handle = f"{self.handle}::profile"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(model.steps, initialize = self.capacity_factor),
-            )
+            m.add_constraints(p_e - h_e * new <= h_e * c_e, name=f"{dim}-max_output")
+            m.add_constraints(p_e - f_e * new >= f_e * c_e, name=f"{dim}-min_output", mask=f_e > 0)
+
+            net.add_cost((new * annual_cost(net, cls, ext)).sum() * net.year_fraction)
+
+        cls._ramp_constraints(net, objs, production, cap)
+        cls._budget_constraints(net, objs, production, avail, cap)
+
+        net.add_injection(production, labels(cls, objs, lambda o: o.node))
+
+        cost = param(cls, objs, lambda o: o.p.operating_cost)
+
+        net.add_cost((production * cost).sum() * net.time_step)
+
+    @classmethod
+    def _ramp_constraints(cls, net, objs, production, cap):
+
+        dim = cls.dim()
+
+        # A ramp limit of a full capacity per step can never bind, so skip it.
+        ramped = subset(objs, lambda o: o.p.ramp_rate is not None and o.p.ramp_rate * net.time_step < 1)
+
+        if not ramped or len(net.time) < 2:
+
+            return
+
+        idx = cls.index(ramped)
+        limit = param(cls, ramped, lambda o: o.p.ramp_rate * net.time_step)
+        p = production.sel({dim: idx})
+        change = p - p.shift(time=1)
+        later = xr.DataArray(net.time > net.time[0], coords=[net.time])
+
+        capacity = limit * cap.sel({dim: idx})
+        ext = subset(ramped, lambda o: o.p.extensible)
+
+        if ext:
+
+            new = net.model.variables[f"{dim}-new_capacity"]
+            fixed = subset(ramped, lambda o: not o.p.extensible)
+
+            if fixed:
+
+                fidx = cls.index(fixed)
+                c = change.sel({dim: fidx})
+                net.model.add_constraints(c <= capacity.sel({dim: fidx}), name=f"{dim}-ramp_up", mask=later)
+                net.model.add_constraints(c >= -capacity.sel({dim: fidx}), name=f"{dim}-ramp_down", mask=later)
+
+            eidx = cls.index(ext)
+            c = change.sel({dim: eidx})
+            lim = limit.sel({dim: eidx})
+            n = new.sel({dim: eidx})
+            net.model.add_constraints(c - lim * n <= capacity.sel({dim: eidx}), name=f"{dim}-ramp_up_ext", mask=later)
+            net.model.add_constraints(c + lim * n >= -capacity.sel({dim: eidx}), name=f"{dim}-ramp_down_ext", mask=later)
 
         else:
 
-            print(self.profile)
+            net.model.add_constraints(change <= capacity, name=f"{dim}-ramp_up", mask=later)
+            net.model.add_constraints(change >= -capacity, name=f"{dim}-ramp_down", mask=later)
 
-            handle = f"{self.handle}::profile"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(
-                    model.steps,
-                    initialize = self.profile[int(model.start):int(model.stop)]),
-            )
+    @classmethod
+    def _budget_constraints(cls, net, objs, production, avail, cap):
 
-        return model
+        dim = cls.dim()
+        budgeted = subset(objs, lambda o: o.p.energy_budget_window is not None)
 
-    def variables(self, model):
+        for window in sorted({o.p.energy_budget_window for o in budgeted}):
 
-        handle = f"{self.handle}::production"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Var(
-                model.steps,
-                initialize = [0] * len(model.steps),
-                within = pyomo.NonNegativeReals
-                ),
-            )
+            group = subset(budgeted, lambda o: o.p.energy_budget_window == window)
+            idx = cls.index(group)
 
-        # Capacity Expansion
-        if self.extensible:
+            # Windows are aligned to absolute step numbers, so a run starting
+            # mid-window gets a pro-rated budget for the partial window.
+            window_id = xr.DataArray(np.asarray(net.time) // window, coords=[net.time], name="window")
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Var(
-                    initialize = 0,
-                    bounds = (0, self.capex_capacity), within = pyomo.NonNegativeReals,
-                    ),
-                )
+            used = production.sel({dim: idx}).groupby(window_id).sum()
+            allowed = (avail.sel({dim: idx}) * cap.sel({dim: idx})).groupby(window_id).sum()
 
-        return model
+            net.model.add_constraints(used <= allowed, name=f"{dim}-energy_budget_{window}")
 
-    def constraints(self, model):
-        """Add capacity and renewable profile constraints"""
+    @classmethod
+    def generation(cls, net, handles):
 
-        production = getattr(model, f"{self.handle}::production")
-        profile = getattr(model, f"{self.handle}::profile")
-        capex = getattr(model, f"{self.handle}::capex")
+        production = net.model.variables[f"{cls.dim()}-production"]
+        total = total_energy(net, cls, "total_generation", production)
 
-        # Maximum capacity constraint
-        setattr(
-            model, f"{self.handle}::production_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = (
-                    lambda m, t: production[t] <= (
-                        self.installed_capacity * profile[t] + capex * profile[t]
-                        )
-                    )
-                )
-            )
+        return total.sel({cls.dim(): handles}).sum()
 
-        # Ramp rate
-        def ramp_rate_rule_upper(m, t):
+    @classmethod
+    def capacity(cls, net, handles, weight=lambda o: 1.0):
 
-            if t == 0:
+        objs = [net.objects[h] for h in handles]
+        total = sum(o.p.installed_capacity * weight(o) for o in objs)
 
-                rule = (0, production[t], np.inf)
+        ext = subset(objs, lambda o: o.p.extensible)
 
-            else:
+        if ext:
 
-                rule = (
-                    production[t] - production[t - 1] <=
-                    self.ramp_rate * (self.installed_capacity + capex)
-                    )
+            new = net.model.variables[f"{cls.dim()}-new_capacity"].sel({cls.dim(): cls.index(ext)})
+            total = (new * param(cls, ext, weight)).sum() + total
 
-            return rule
+        return total
 
-        setattr(
-            model, f"{self.handle}::ramp_rate_upper_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = lambda m, t: ramp_rate_rule_upper(m, t),
-                )
-            )
+    @classmethod
+    def solution(cls, net, objs):
 
-        def ramp_rate_rule_lower(m, t):
+        dim = cls.dim()
+        production = net.model.variables[f"{dim}-production"].solution
 
-            if t == 0:
+        new = {}
 
-                rule = (0, production[t], np.inf)
+        if f"{dim}-new_capacity" in net.model.variables:
 
-            else:
+            sol = net.model.variables[f"{dim}-new_capacity"].solution
+            new = dict(zip(sol.coords[dim].values, sol.values.tolist()))
 
-                rule = (
-                    production[t] - production[t - 1] >=
-                    -self.ramp_rate * (self.installed_capacity + capex)
-                    )
+        out = {}
 
-            return rule
+        for o in objs:
 
-        setattr(
-            model, f"{self.handle}::ramp_rate_lower_constraint",
-            pyomo.Constraint(
-                model.steps,
-                rule = lambda m, t: ramp_rate_rule_lower(m, t),
-                )
-            )
+            p = production.sel({dim: o.handle}).values.tolist()
 
-        return model
+            out[o.handle] = {
+                "production": p,
+                "new_capacity": [new.get(o.handle, 0.0)],
+                "net": p,
+            }
 
-    def energy(self, model, step = None):
-
-        production = getattr(model, f"{self.handle}::production")
-
-        if step is None:
-
-            energy = pyomo.quicksum(
-                production[i] * model.time_step for i in model.steps
-            )
-
-        else:
-
-            energy = production[step] * model.time_step
-
-        return energy
-
-    def power(self, model, step = None):
-
-        production = getattr(model, f"{self.handle}::production")
-
-        if step is None:
-
-            power = pyomo.quicksum(
-                production[i] for i in model.steps
-            )
-
-        else:
-
-            power = production[step]
-
-        return power
-
-    def capacity(self, model, step = None):
-
-        capex = getattr(model, f"{self.handle}::capex")
-
-        capacity = self.installed_capacity + capex
-
-        return capacity
-
-    def objective(self, model):
-        """Calculate cost of production"""
-
-        production = getattr(model, f"{self.handle}::production")
-        
-        production_cost = pyomo.quicksum(
-            production[t] * model.time_step * self.operating_cost  for t in model.steps
-        )
-
-        capex = getattr(model, f"{self.handle}::capex")
-
-        expansion_cost = capex * self.capex_cost * model.amortization
-
-        cost = production_cost + expansion_cost
-        
-        return cost
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle.split('::')[1]] = value
-
-        # Net Contribution
-        production = list(
-            getattr(model, f"{self.handle}::production").extract_values().values()
-            )
-
-        solution["net"] = production
-
-        return solution
+        return out

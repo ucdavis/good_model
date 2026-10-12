@@ -1,32 +1,61 @@
-import time
-import json
+'''
+Aggregate similar assets within each region to shrink the model.
+
+Assets are first split into groups that must never merge: different class,
+type, fuel, profile, jurisdiction, dispatchability or renewable status. Only
+assets marked ``combinable`` and not expandable are merged. Within a group,
+k-means on standardized features (heat rate, operating cost and CO2 rate by
+default) forms clusters, and each cluster becomes one asset.
+
+Grouping by profile keeps wind and solar sites with different resource
+profiles apart; grouping by jurisdiction keeps state policies correct.
+Merged assets add capacities and take capacity-weighted means of costs and
+rates, so total capacity and capacity-weighted averages are preserved.
+
+The work is linear in the number of assets (k-means), replacing the pairwise
+similarity graph used before GOOD 2.0.
+'''
+
+import math
+import warnings
 
 import numpy as np
-import networkx as nx
+from scipy.cluster.vq import kmeans2
 
+from .exceptions import GOOD_LegacyInput
 from .progress_bar import ProgressBar
 
+default_group_keys = (
+    '_class', 'type', 'fuel', 'profile', 'jurisdiction', 'dispatchable', 'renewable',
+)
+
+default_features = {
+    'heat_rate': 1.0,
+    'operating_cost': 1.0,
+    'co2': 1.0,
+}
+
 default_combination = {
+    # identifiers
     'oris_code': 'all',
     'egrid_id': 'all',
-    'type': 'first',
-    'fuel': 'first',
-    '_class': 'first',
-    'profile': 'first',
-    'region': 'first',
-    'jurisdiction': 'first',
-    'nerc': 'first',
     'utility': 'all',
+    # capacities add
+    'installed_capacity': 'sum',
+    'installed_energy': 'sum',
+    'capex_capacity': 'sum',
     'x': 'mean',
     'y': 'mean',
-    'installed_capacity': 'sum',
+    # per-MW quantities are capacity-weighted means
     'capacity_factor': 'mean',
-    'dispatchable': 'first',
-    'combinable': 'first',
-    'renewable': 'first',
-    'extensible': 'first',
-    'capex_capacity': 'sum',
-    'capex_cost': 'sum',
+    'capacity_credit': 'mean',
+    'min_output': 'mean',
+    'ramp_rate': 'mean',
+    'duration': 'mean',
+    'charge_efficiency': 'mean',
+    'discharge_efficiency': 'mean',
+    'capex_cost': 'mean',
+    'fom_cost': 'mean',
     'operating_cost': 'mean',
     'heat_rate': 'mean',
     'nox': 'mean',
@@ -36,106 +65,153 @@ default_combination = {
     'n2o': 'mean',
     'pm': 'mean',
 }
+'''How to combine each attribute. Attributes not listed keep the first member's value.'''
 
-default_clustering = {
-    'weight': 'weight',
-    'resolution': 1.1,
-    'cutoff': 1,
-}
 
-default_feasibility = {
-    'type': lambda s, t: s['type'] == t['type'],
-    'fuel': lambda s, t: s.get('fuel', '') == t.get('fuel', ''),
-    'combinable': (
-        lambda s, t: (
-            s.get('combinable', False) and t.get('combinable', False)
-        )
-    ),
-}
+def _hashable(value):
 
-default_distance = {
-    'heat_rate': (
-        lambda s, t: (
-            np.abs(
-                s.get('heat_rate', 0) - t.get('heat_rate', 0)
-            ) * 3412 / 2000
-        )
-    ),
-    'operating_cost': (
-        lambda s, t: (
-            np.abs(
-                s.get('operating_cost', 0) - t.get('operating_cost', 0)
-            ) * 3.6e9 / 2000
-        )
-    ),
-    'co2': (
-        lambda s, t: (
-            np.abs(
-                s.get('co2', 0) - t.get('co2', 0)
-            ) * 1 / (0.453592 / 3.6e9) / 10
-        )
-    ),
-}
+    if isinstance(value, (list, tuple, np.ndarray)):
 
-def aggregate(graph, **kwargs):
+        return tuple(np.round(np.asarray(value, dtype=float), 9).tolist())
 
-    for source in ProgressBar(list(graph.nodes()), **kwargs.get('progress_bar', {})):
+    if isinstance(value, dict):
+
+        return tuple(sorted((k, _hashable(v)) for k, v in value.items()))
+
+    return value
+
+
+def _expandable(asset):
+
+    capex_capacity = asset.get('capex_capacity', 0) or 0
+
+    return capex_capacity > 0
+
+
+def aggregate(graph, ratio=0.1, max_clusters=None, features=None, group_keys=default_group_keys,
+              combination=None, seed=0, progress_bar=None, **kwargs):
+    '''
+    Aggregate the assets of every node in ``graph`` in place and return it.
+
+    ``ratio`` is the target number of clusters as a fraction of each group's
+    size (0.1 turns 50 similar plants into 5); ``max_clusters`` caps it.
+    ``features`` maps attribute name to weight for clustering.
+    '''
+
+    for legacy in ('clustering', 'feasibility', 'distance'):
+
+        if legacy in kwargs:
+
+            raise GOOD_LegacyInput(
+                f"aggregate(..., {legacy}=...) was removed in GOOD 2.0; aggregation now uses k-means. "
+                "Use ratio=, max_clusters=, features= and group_keys= instead."
+            )
+
+    if kwargs:
+
+        raise TypeError(f"aggregate() got unexpected keyword arguments {sorted(kwargs)}")
+
+    nodes = list(graph.nodes())
+
+    for source in ProgressBar(nodes, **(progress_bar or {'disp': False})):
 
         graph._node[source]['assets'] = aggregate_assets(
-            graph._node[source]['assets'], **kwargs
-            )
+            graph._node[source].get('assets', {}),
+            ratio=ratio, max_clusters=max_clusters, features=features,
+            group_keys=group_keys, combination=combination, seed=seed,
+        )
 
     return graph
 
-def aggregate_assets(assets, **kwargs):
 
-    feasibility = kwargs.get('feasibility', default_feasibility)
-    clustering = kwargs.get('clustering', default_clustering)
-    combination = kwargs.get('combination', default_combination)
-    distance = kwargs.get('distance', default_distance)
+def aggregate_assets(assets, ratio=0.1, max_clusters=None, features=None, group_keys=default_group_keys,
+                     combination=None, seed=0):
+    '''Aggregate one node's asset dictionary (handle to attributes).'''
 
-    edges = []
+    features = default_features if features is None else features
+    combination = default_combination if combination is None else combination
 
-    for source_id, source_asset in assets.items():
-        for target_id, target_asset in assets.items():
+    groups = {}
+    result = {}
 
-            if source_id == target_id:
+    for handle, asset in assets.items():
 
-                continue
+        if not asset.get('combinable', False) or _expandable(asset):
 
-            feasible = np.product(
-                [True] + [fun(source_asset, target_asset) for fun in feasibility.values()]
-                )
+            result[handle] = asset
 
-            if not feasible:
+            continue
 
-                continue
+        key = tuple(_hashable(asset.get(k)) for k in group_keys)
+        groups.setdefault(key, []).append(handle)
 
-            weight = np.sum(
-                [fun(source_asset, target_asset) for fun in distance.values()]
-                )
+    for members in groups.values():
 
-            edge = {
-                'weight': np.exp(-weight),
-                }
+        for community in cluster(assets, members, features, ratio, max_clusters, seed):
 
-            edges.append((source_id, target_id, edge))
+            if len(community) == 1:
 
-    g = nx.Graph()
-    g.add_edges_from(edges)
+                result[community[0]] = assets[community[0]]
 
-    communities = [
-        list(c) for c in nx.community.greedy_modularity_communities(g, **clustering)
-        ]
+            else:
 
-    included = list(g.nodes)
-    excluded = list(set(list(assets.keys())) - set(included))
+                result.update(combine(assets, [community], functions=combination))
 
-    aggregated = combine(assets, communities, functions = combination)
+    return result
 
-    aggregated = {**aggregated, **{k: v for k, v in assets.items() if k not in included}}
 
-    return aggregated
+def cluster(assets, members, features, ratio, max_clusters, seed):
+    '''Split ``members`` into clusters with k-means; returns lists of handles.'''
+
+    n = len(members)
+
+    if n == 1:
+
+        return [members]
+
+    names = list(features)
+
+    if names:
+
+        data = np.array(
+            [[float(assets[h].get(name, 0.0) or 0.0) for name in names] for h in members]
+        )
+
+        spread = data.std(axis=0)
+        scaled = np.divide(data - data.mean(axis=0), spread, out=np.zeros_like(data), where=spread > 0)
+        scaled = scaled * np.array([features[name] for name in names])
+
+    else:
+
+        scaled = np.zeros((n, 1))
+
+    k = max(1, math.ceil(n * ratio))
+
+    if max_clusters is not None:
+
+        k = min(k, max_clusters)
+
+    distinct = len(np.unique(scaled, axis=0))
+    k = min(k, distinct)
+
+    if k == 1:
+
+        return [list(members)]
+
+    with warnings.catch_warnings():
+
+        warnings.simplefilter("ignore")  # empty clusters are dropped below
+
+        _, labels = kmeans2(scaled, k, seed=seed, minit='++')
+
+    communities = {}
+
+    for handle, label in zip(members, labels):
+
+        communities.setdefault(int(label), []).append(handle)
+
+    return list(communities.values())
+
 
 def combine_values(values, weights, fun):
 
@@ -143,67 +219,70 @@ def combine_values(values, weights, fun):
 
         return fun(values)
 
-    elif isinstance(fun, str):
+    if fun == 'first':
 
-        if fun == 'first':
+        return values[0]
 
-            return values[0]
+    if fun == 'all':
 
-        if fun == 'all':
+        return values
 
-            return values
+    if fun == 'sum':
 
-        if fun == 'sum':
+        return sum(values)
 
-            return sum(values)
+    if fun == 'mean':
 
-        if fun == 'mean':
+        total = sum(weights)
 
-            n = len(values)
-            denominator = 1 if sum(weights) == 0 else sum(weights)
+        if total == 0:
 
-            return sum([values[idx] * weights[idx] for idx in range(n)]) / denominator
+            return sum(values) / len(values)
 
-    return values
+        return sum(v * w for v, w in zip(values, weights)) / total
 
-def combine(plants, communities, **kwargs):
+    raise ValueError(f"Unknown combination {fun!r}; use 'first', 'all', 'sum', 'mean' or a function")
 
-    weight = kwargs.get('weight', 'installed_capacity')
-    functions = kwargs.get('functions', {})
+
+def combine(plants, communities, weight='installed_capacity', functions=None):
+    '''Merge each community of assets into one asset named "<first member>_combined".'''
+
+    functions = default_combination if functions is None else functions
 
     combined = {}
 
-    for idx, community in enumerate(communities):
+    for community in communities:
 
         members = [plants[key] for key in community]
-        weights = [m[weight] for m in members]
-        sum_weight = sum(weights)
-
-        if sum_weight == 0:
-
-            sum_weight = 1
+        weights = [abs(float(m.get(weight, 0.0) or 0.0)) for m in members]
 
         handle = f"{community[0]}_combined"
 
-        plant = {
-            'id': handle,
-            "components": community,
-            weight: sum([m[weight] for m in members])
-            }
+        plant = {'id': handle, 'components': list(community)}
 
-        for key, val in members[0].items():
+        keys = []
 
-            if key in ['id', weight]:
+        for member in members:
 
-                continue
+            keys.extend(k for k in member if k not in keys)
 
-            if key not in functions:
+        for key in keys:
+
+            if key in ('id', 'components'):
 
                 continue
 
-            values = [m.get(key, None) for m in members if key in m]
+            present = [(m[key], w) for m, w in zip(members, weights) if key in m]
+            values = [v for v, _ in present]
+            member_weights = [w for _, w in present]
 
-            plant[key] = combine_values(values, weights, functions[key])
+            fun = functions.get(key, 'first')
+
+            if fun == 'mean' and not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+
+                fun = 'first'
+
+            plant[key] = combine_values(values, member_weights, fun)
 
         combined[handle] = plant
 

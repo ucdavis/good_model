@@ -1,223 +1,141 @@
-import numpy as np
+import math
 
-from ..base.asset import Asset
-import pyomo.environ as pyomo
+import numpy as np
+import xarray as xr
+
+from ...schema import LoadParams
+from ..base import Asset
+from ..base.component import labels, param, profile_matrix, subset
+
 
 class Load(Asset):
+    '''
+    Electricity demand: ``installed_capacity * profile`` MW in each step.
 
-    def __init__(self, handle, **kwargs):
+    A load with ``flex_capacity > 0`` can shift part of its demand in time,
+    following GenX's flexible-demand formulation. In each step it may defer
+    up to ``min(flex_capacity, demand)`` MW and serve up to ``flex_capacity``
+    MW of earlier-deferred (or later-due) demand. An inventory tracks demand
+    deferred but not yet served:
+
+        backlog[t] = backlog[t-1] + deferred[t] - flex_efficiency * served[t]
+
+    The backlog wraps from the last step to the first, so shifted demand is
+    always paid back inside the horizon. Deferred demand must be served
+    within ``flex_max_delay`` hours, and demand served early must fall due
+    within ``flex_max_advance`` hours (both optional).
+    '''
+
+    Params = LoadParams
+
+    @classmethod
+    def base_demand(cls, net, objs):
+
+        return profile_matrix(net, cls, objs) * param(cls, objs, lambda o: o.p.installed_capacity)
+
+    @classmethod
+    def build(cls, net, objs):
+
+        m = net.model
+        dim = cls.dim()
+        dt = net.time_step
+
+        demand = cls.base_demand(net, objs)
+        region = labels(cls, objs, lambda o: o.node)
+
+        net.add_fixed_injection(-demand, region)
+
+        flexible = subset(objs, lambda o: o.p.flexible)
+
+        if not flexible:
+
+            return
+
+        fidx = cls.index(flexible)
+        flex_cap = param(cls, flexible, lambda o: o.p.flex_capacity)
+        eta = param(cls, flexible, lambda o: o.p.flex_efficiency)
+
+        deferred = m.add_variables(
+            lower=0, upper=np.minimum(flex_cap, demand.sel({dim: fidx})), name=f"{dim}-deferred"
+        )
+        served = m.add_variables(
+            lower=0, upper=(flex_cap / eta).broadcast_like(deferred.lower), name=f"{dim}-served"
+        )
+        backlog = m.add_variables(coords=[fidx, net.time], name=f"{dim}-backlog")
+
+        change = (deferred - served * eta) * dt
+
+        later = xr.DataArray(net.time > net.time[0], coords=[net.time])
+        m.add_constraints(backlog - backlog.shift(time=1) - change == 0, name=f"{dim}-backlog_balance", mask=later)
+        m.add_constraints((backlog - backlog.roll(time=1) - change).isel(time=[0]) == 0, name=f"{dim}-backlog_cyclic")
+
+        cls._window_limits(net, flexible, served, backlog, "flex_max_delay", 1.0, "max_delay")
+        cls._window_limits(net, flexible, deferred, backlog, "flex_max_advance", -1.0, "max_advance")
+
+        net.add_injection(deferred - served, labels(cls, flexible, lambda o: o.node))
+
+        cost = param(cls, flexible, lambda o: o.p.flex_cost)
+
+        net.add_cost((deferred * cost).sum() * dt)
+
+    @classmethod
+    def _window_limits(cls, net, objs, flow, backlog, attribute, sign, name):
         '''
-        A Load is a grid asset which adds or subtracts energy based on a profile
-        and do not receive a dispacth signal from the grid. This includes end user loads
-        and certaint types of renewables.
+        Delay: served energy in the next k steps covers today's backlog.
+        Advance: deferred energy in the next k steps covers today's advance.
         '''
 
-        super().__init__(handle, **kwargs)
-        
-        self.installed_capacity = kwargs.get('installed_capacity', 0)
-        self.operating_cost = kwargs.get('operating_cost', 0)
+        dim = cls.dim()
+        limited = subset(objs, lambda o: getattr(o.p, attribute) is not None)
+        steps = {o.handle: max(1, math.ceil(getattr(o.p, attribute) / net.time_step)) for o in limited}
 
-        # print(self.handle, self.installed_capacity / 1e6)
+        for k in sorted(set(steps.values())):
 
-        # Can capacity be expanded
-        self.capex_capacity = kwargs.get('capex_capacity', 0)
-        self.capex_cost = kwargs.get('capex_cost', 0)
-        self.extensible = self.capex_capacity > 0
+            group = [o for o in limited if steps[o.handle] == k]
+            idx = cls.index(group)
+            f = flow.sel({dim: idx})
 
-        self.shift_capacity = kwargs.get('shift_capacity', 0)
-        self.shiftable = self.shift_capacity > 0
+            ahead = sum(f.roll(time=-j) for j in range(1, k + 1)) * net.time_step
 
-        self.shift_window = kwargs.get('shift_window', None)
+            net.model.add_constraints(ahead - sign * backlog.sel({dim: idx}) >= 0, name=f"{dim}-{name}_{k}")
 
-        self.profile = kwargs.get('profile', None)
+    @classmethod
+    def demand(cls, net, handles):
 
-        if self.profile is not None:
+        objs = [net.objects[h] for h in handles]
 
-            self.profile = np.array(self.profile)
+        return cls.base_demand(net, objs).sum(cls.dim())
 
-    def parameters(self, model):
+    @classmethod
+    def solution(cls, net, objs):
 
-        if self.shift_window is None:
+        dim = cls.dim()
+        v = net.model.variables
+        demand = cls.base_demand(net, objs)
 
-            self.shift_window = len(model.steps)
+        flex = f"{dim}-deferred" in v
 
-        if self.profile is None:
+        out = {}
 
-            self.profile = [0] * len(model.steps)
+        for o in objs:
 
-        handle = f"{self.handle}::profile"
-        self.handles.append(handle)
-        setattr(
-            model, handle,
-            pyomo.Param(model.steps,
-                initialize = self.profile[int(model.start):int(model.stop)]
-                )
-            )
+            d = demand.sel({dim: o.handle}).values
+            result = {"demand": d.tolist()}
+            consumption = d
 
-        # Capacity Expansion
-        if not self.extensible:
+            if flex and o.p.flexible:
 
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(initialize = 0),
-            )
+                deferred = v[f"{dim}-deferred"].solution.sel({dim: o.handle}).values
+                served = v[f"{dim}-served"].solution.sel({dim: o.handle}).values
+                consumption = d - deferred + served
 
-        if not self.shiftable:
+                result["deferred"] = deferred.tolist()
+                result["served"] = served.tolist()
+                result["backlog"] = v[f"{dim}-backlog"].solution.sel({dim: o.handle}).values.tolist()
 
-            handle = f"{self.handle}::shift"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Param(
-                    model.steps, initialize = [0] * len(model.steps),
-                    )
-                )
+            result["consumption"] = consumption.tolist()
+            result["net"] = (-consumption).tolist()
 
-        return model
+            out[o.handle] = result
 
-    def variables(self, model):
-
-        # Capacity Expansion
-        if self.extensible:
-
-            handle = f"{self.handle}::capex"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Var(
-                    initialize = 0,
-                    bounds = (0, self.capex_capacity), within = pyomo.NonNegativeReals,
-                    ),
-                )
-
-        if self.shiftable:
-
-            handle = f"{self.handle}::shift"
-            self.handles.append(handle)
-            setattr(
-                model, handle,
-                pyomo.Var(
-                    model.steps,
-                    initialize = [0] * len(model.steps), 
-                    within = pyomo.Reals,
-                    bounds = (-self.shift_capacity, self.shift_capacity)
-                    ),
-                )
-
-        return model
-
-    def constraints(self, model):
-
-        if self.shiftable:
-
-            profile = getattr(model, f"{self.handle}::profile")
-            shift = getattr(model, f"{self.handle}::shift")
-            capex = getattr(model, f"{self.handle}::capex")
-
-            capacity = self.installed_capacity + capex
-
-            for start in np.arange(
-                model.steps.at(1), model.steps.at(-1), self.shift_window
-                ):
-
-                # print(start)
-                finish = min([start + self.shift_window, model.steps.at(-1)])
-
-                indices = np.arange(start, finish, 1)
-
-                shift_sum = pyomo.quicksum(shift[t] for t in indices)
-
-                setattr(
-                    model, f"{self.handle}::shift_sum_constraint_{start}",
-                    pyomo.Constraint(expr = (0, shift_sum, 0)),
-                    )
-
-        return model
-
-    def energy(self, model, step = None):
-
-        profile = getattr(model, f"{self.handle}::profile")
-        shift = getattr(model, f"{self.handle}::shift")
-        capex = getattr(model, f"{self.handle}::capex")
-
-        capacity = self.installed_capacity + capex
-        
-        if step is None:
-
-            energy = pyomo.quicksum(
-                profile[t] * model.time_step * capacity + shift[t] for t in model.steps
-                )
-
-        else:
- 
-            energy = profile[step] * model.time_step * capacity + shift[step]
-
-        return energy
-
-    def power(self, model, step = None):
-
-        profile = getattr(model, f"{self.handle}::profile")
-        shift = getattr(model, f"{self.handle}::shift")
-        capex = getattr(model, f"{self.handle}::capex")
-
-        capacity = self.installed_capacity + capex
-        
-        if step is None:
-
-            power = pyomo.quicksum(
-                profile[t] * capacity + shift[t] for t in model.steps
-                )
-
-        else:
-
-            power = profile[step] * capacity + shift[step]
-
-        return power
-
-    def capacity(self, model, step = None):
-
-        capex = getattr(model, f"{self.handle}::capex")
-
-        capacity = self.installed_capacity + capex
-
-        return capacity
-
-    def objective(self, model):
-
-        profile = getattr(model, f"{self.handle}::profile")
-        shift = getattr(model, f"{self.handle}::shift")
-        capex = getattr(model, f"{self.handle}::capex")
-
-        capacity = self.installed_capacity + capex
-
-        expansion_cost = capex * self.capex_cost * model.amortization
-
-        cost = expansion_cost
-
-        return cost
-
-    def solution(self, model):
-
-        solution = {}
-
-        for handle in self.handles:
-
-            value = list(getattr(model, handle).extract_values().values())
-            solution[handle.split('::')[1]] = value
-
-        # Net Contribution
-        profile = list(
-            getattr(model, f"{self.handle}::profile").extract_values().values()
-            )
-        shift = list(getattr(model, f"{self.handle}::shift").extract_values().values())
-        capex = list(getattr(model, f"{self.handle}::capex").extract_values().values())
-
-        capacity = self.installed_capacity + capex[0]
-
-        solution["net"] = (
-            [profile[i] * capacity + shift[i] for i in model.steps]
-            )
-
-        return solution
+        return out

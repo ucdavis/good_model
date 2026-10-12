@@ -1,0 +1,50 @@
+site_name: GOOD model
+site_description: Grid Optimized Operation Dispatch, an economic dispatch and capacity expansion model
+repo_url: https://github.com/ucdavis/good_model
+edit_uri: edit/HEAD/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+exclude_docs: |
+  archive/
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Quickstart: quickstart.md
+      - Concepts: concepts.md
+  - Reference:
+      - Units: units.md
+      - Inputs: inputs.md
+      - Formulation: formulation.md
+      - Policies and filters: policies.md
+      - Outputs: outputs.md
+  - Data:
+      - Data sources: data.md
+      - Assumptions: assumptions.md
+      - Aggregation: aggregation.md
+  - Performance: performance.md
+  - Migrating from 1.x: migration.md
+  - Changelog: changelog.md
